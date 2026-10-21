@@ -83,4 +83,7 @@ def create_app(test_config=None):
             message="A interface do protótipo continua no GitHub Pages.",
         )
 
+    from .auth import auth_bp
+
+    app.register_blueprint(auth_bp, url_prefix="/api")
     return app
