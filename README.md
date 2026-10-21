@@ -11,7 +11,7 @@ O app Só por Hoje inspira a interface escura e acolhedora, os cartões arredond
 - **Hoje:** doses agrupadas por horário, quantidade variável por dose, registro com hora real, ação “Tomei tudo”, opção de pular, desfazer e aviso de dose pendente.
 - **Medicamentos:** rotinas diárias e medicamentos de uso eventual, edição, exclusão confirmada, estoque contado manualmente, previsão simples de reposição e validade da receita.
 - **Histórico:** calendário mensal com registros reais, cores de adesão calculadas como tomadas sobre esperadas, registro de dose em data anterior e anotação diária somente leitura no Histórico. O registro fictício de demonstração foi removido.
-- **Meu dia:** humor, anotação e perguntas para a próxima consulta; resumo textual exportável para levar à consulta.
+- **Meu dia:** humor, anotação e perguntas para a próxima consulta; resumo textual exportável para levar à consulta. O cartão na tela Hoje abre esse registro.
 - **Agenda:** compromissos, lista dos próximos 30 dias, sugestão de renovação de receita e exportação de evento `.ics`.
 - **SOS:** ligação para SAMU 192 e CVV 188, buscas por farmácia/UPA/UBS/CAPS e contatos salvos neste aparelho. Os serviços de localização são pesquisas externas; confirme o resultado antes de se deslocar.
 - **Perfil:** lembretes locais e segundo aviso após 30 minutos enquanto o app está aberto, opção de ocultar nomes nas notificações, instalação PWA, PIN local com limite progressivo de tentativas e bloqueio ao voltar ao app, exportação/importação com cópia automática antes de substituir dados.

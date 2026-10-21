@@ -16,6 +16,7 @@ let deferredInstallPrompt = null;
 let scheduleDraft = [];
 let editingMedId = null;
 let stockMedId = null;
+let welcomeBackSummary = sessionStorage.getItem('checkmed.welcomeBack') || '';
 const moodFaces = {
   'muito-bem': '😊',
   bem: '🙂',
@@ -289,6 +290,12 @@ function render() {
   }).format(date).toLocaleUpperCase('pt-BR');
   $('#welcomeName').hidden = !state.name;
   $('#welcomeName').textContent = state.name ? `${date.getHours()<12?'Bom dia':date.getHours()<18?'Boa tarde':'Boa noite'}, ${state.name}` : '';
+  $('#welcomeBackCard').hidden = !welcomeBackSummary;
+  if (welcomeBackSummary) $('#welcomeBackSummary').textContent = welcomeBackSummary;
+  const todaysEntry = state.dailyEntries[todayKey()] || {};
+  $('#moodShortcutFace').textContent = moodFaces[todaysEntry.mood] || '🙂';
+  $('#moodShortcutTitle').textContent = todaysEntry.mood ? 'Seu registro de hoje está salvo' : 'Como você está hoje?';
+  $('#moodShortcutSummary').textContent = todaysEntry.mood || todaysEntry.note || todaysEntry.questions ? 'Toque para rever ou atualizar em “Meu dia”.' : 'Seu registro de humor continua em “Meu dia”.';
   const ds = dosesForToday(),
     done = ds.filter(d => state.logs.some(l => l.id === d.id && ['taken', 'taken_late'].includes(l.status))).length,
     percent = ds.length ? Math.round(done / ds.length * 100) : 0;
@@ -834,7 +841,8 @@ function resetMedicationForm() {
   $('#medForm').elements.stock.value = 30;
   $('#medMode').value = 'daily';
   $('#timesField').hidden = false;
-  $('#amountLabel').firstChild.textContent = 'Comprimidos por dose';
+  $('#amountField').hidden = true;
+  $('#doseFields').classList.add('single-field');
   $('#medDialog').querySelector('.eyebrow').textContent = 'NOVA ROTINA';
   $('#medDialog').querySelector('h2').textContent = 'Medicamento';
   renderScheduleChips();
@@ -926,10 +934,16 @@ $('#saveCheckin').addEventListener('click', () => {
     updatedAt: new Date().toISOString()
   };
   save();
-  render();
+  nav('today');
   showToast('Registro do dia salvo.');
 });
 $('#openDaylog').addEventListener('click', () => nav('daylog'));
+$('#moodShortcut').addEventListener('click', () => nav('daylog'));
+$('#dismissWelcomeBack').addEventListener('click', () => {
+  welcomeBackSummary = '';
+  sessionStorage.removeItem('checkmed.welcomeBack');
+  $('#welcomeBackCard').hidden = true;
+});
 
 function moveEntryDate(delta) {
   const date = new Date(`${selectedEntryDate}T12:00:00`);
@@ -946,7 +960,7 @@ $('#medForm').addEventListener('submit', e => {
   const f = new FormData(e.currentTarget),
     mode = String(f.get('mode')),
     name = String(f.get('name')).trim(),
-    perDose = Number(f.get('perDose')),
+    perDose = mode === 'daily' ? Number(scheduleDraft[0]?.amount) || 1 : Number(f.get('perDose')),
     times = scheduleDraft.map(item => item.time),
     existing = editingMedId ? state.meds.find(m => m.id === editingMedId) : null;
   if (mode === 'daily' && !scheduleDraft.length) {
@@ -977,7 +991,8 @@ $('#medForm').addEventListener('submit', e => {
 $('#medMode').addEventListener('change', e => {
   const occasional = e.target.value === 'asneeded';
   $('#timesField').hidden = occasional;
-  $('#amountLabel').firstChild.textContent = occasional ? 'Comprimidos por tomada' : 'Comprimidos por dose';
+  $('#amountField').hidden = !occasional;
+  $('#doseFields').classList.toggle('single-field', !occasional);
 });
 
 function openEditMed(id) {
@@ -988,14 +1003,15 @@ function openEditMed(id) {
   form.elements.name.value = med.name;
   form.elements.mode.value = med.mode;
   form.elements.strength.value = med.strength || '';
-  form.elements.perDose.value = med.perDose || 1;
+  form.elements.perDose.value = med.mode === 'asneeded' ? med.perDose || 1 : scheduleOf(med)[0]?.amount || med.perDose || 1;
   form.elements.stock.value = med.stock;
   form.elements.prescriptionExpiry.value = med.prescriptionExpiry || '';
   scheduleDraft = scheduleOf(med).map(item => ({
     ...item
   }));
   $('#timesField').hidden = med.mode === 'asneeded';
-  $('#amountLabel').firstChild.textContent = med.mode === 'asneeded' ? 'Comprimidos por tomada' : 'Comprimidos por dose';
+  $('#amountField').hidden = med.mode !== 'asneeded';
+  $('#doseFields').classList.toggle('single-field', med.mode !== 'asneeded');
   $('#medDialog').querySelector('.eyebrow').textContent = 'EDITAR MEDICAMENTO';
   $('#medDialog').querySelector('h2').textContent = med.name;
   renderScheduleChips();
@@ -1014,8 +1030,25 @@ function openStockDialog(id) {
   if (!med) return;
   stockMedId = id;
   $('#stockForm').elements.stock.value = String(med.stock).replace('.', ',');
+  updateStockForecast();
   openDialog('stockDialog');
 }
+function updateStockForecast() {
+  const med = state.meds.find(item => item.id === stockMedId),
+    amount = parseAmount($('#stockForm').elements.stock.value),
+    forecast = $('#stockForecast');
+  if (!med || med.mode === 'asneeded') {
+    forecast.textContent = med ? 'O estoque de uso eventual será atualizado após salvar.' : '';
+    return;
+  }
+  if (amount === null) {
+    forecast.textContent = 'Digite a quantidade para estimar por quantos dias o estoque deve durar.';
+    return;
+  }
+  const days = stockDays({ ...med, stock: amount });
+  forecast.textContent = `Com essa quantidade, a previsão é de ${days} ${days === 1 ? 'dia' : 'dias'} de estoque, até ${fmtDate(addDays(todayKey(), days), { day: 'numeric', month: 'long' })}.`;
+}
+$('#stockForm').elements.stock.addEventListener('input', updateStockForecast);
 $('#stockForm').addEventListener('submit', e => {
   e.preventDefault();
   const med = state.meds.find(item => item.id === stockMedId),
@@ -1026,11 +1059,12 @@ $('#stockForm').addEventListener('submit', e => {
   }
   if (med) {
     med.stock = amount;
+    const days = med.mode === 'asneeded' ? null : stockDays(med);
+    $('#stockDialog').close();
     save();
     render();
-    showToast('Estoque atualizado.');
+    showToast(days === null ? 'Estoque atualizado.' : `Estoque atualizado: previsão de ${days} ${days === 1 ? 'dia' : 'dias'}.`);
   }
-  $('#stockDialog').close();
 });
 
 function createRenewalEvent(medId) {
@@ -1115,7 +1149,7 @@ $('#installAppButton').addEventListener('click', async () => {
 });
 updateInstallButton();
 $('#sosButton').addEventListener('click', () => {
-  const contact = state.contact ? `<div class="contact-card"><strong>Contato de confiança</strong><br>${escapeHtml(state.contact)}</div>` : `<div class="contact-card">Adicione um contato de confiança para encontrá-lo rapidamente quando precisar.</div>`;
+  const contact = state.contact ? `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>${escapeHtml(state.contact)}</small></div></div>` : `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>Adicione um contato para encontrá-lo rapidamente quando precisar.</small></div></div>`;
   const meds = state.meds.length ? `<p class="medicine-emergency"><strong>Medicamentos cadastrados:</strong> ${state.meds.map(m=>`${escapeHtml(m.name)} ${escapeHtml(m.strength)}`).join(', ')}</p>` : '';
   $('#sosContent').innerHTML = contact + meds;
   $('#contactForm').elements.contact.value = state.contact;
@@ -1138,7 +1172,7 @@ $('#contactForm').addEventListener('submit', e => {
   e.preventDefault();
   state.contact = e.currentTarget.elements.contact.value.trim();
   save();
-  $('#sosContent').innerHTML = state.contact ? `<div class="contact-card"><strong>Contato de confiança</strong><br>${escapeHtml(state.contact)}</div>` : '<div class="contact-card">Adicione um contato de confiança para encontrá-lo rapidamente quando precisar.</div>';
+  $('#sosContent').innerHTML = state.contact ? `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>${escapeHtml(state.contact)}</small></div></div>` : '<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>Adicione um contato para encontrá-lo rapidamente quando precisar.</small></div></div>';
   showToast('Contato salvo neste aparelho.');
 });
 
@@ -1179,8 +1213,11 @@ async function importBackupFile(input) {
     for (const key of Object.keys(DEFAULT_STATE)) state[key] = imported[key];
     state.lastBackupAt = new Date().toISOString();
     save();
-    render();
     if ($('#recoveryDialog').open) $('#recoveryDialog').close();
+    const recordCount = state.logs.length + Object.values(state.dailyEntries).filter(entry => entry.mood || entry.note || entry.questions).length;
+    welcomeBackSummary = `Seus dados foram recuperados: ${state.meds.length} ${state.meds.length === 1 ? 'medicamento' : 'medicamentos'}, ${state.events.length} ${state.events.length === 1 ? 'compromisso' : 'compromissos'} e ${recordCount} ${recordCount === 1 ? 'registro' : 'registros'}.`;
+    sessionStorage.setItem('checkmed.welcomeBack', welcomeBackSummary);
+    nav('today');
     showToast('Backup importado com sucesso.');
   } catch (error) {
     showToast(error.message || 'Não foi possível importar esse arquivo.');
