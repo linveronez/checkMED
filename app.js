@@ -1144,17 +1144,26 @@ $('#installAppButton').addEventListener('click', async () => {
   showToast(/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'No Safari: Compartilhar → Adicionar à Tela de Início.' : 'Use o menu do navegador para instalar o CheckMed.');
 });
 updateInstallButton();
+function trustedContactCard() {
+  const contact = String(state.contact || '').trim();
+  if (!contact) return '<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>Adicione um contato para encontrá-lo rapidamente quando precisar.</small></div></div>';
+  const digits = contact.replace(/\D/g, ''),
+    phoneOnly = /^\+?[\d\s().-]+$/.test(contact) && [10, 11, 12, 13].includes(digits.length),
+    phone = `${contact.trim().startsWith('+') ? '+' : ''}${digits}`;
+  return `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>${escapeHtml(contact)}</small>${phoneOnly ? `<a class="trusted-contact-call" href="tel:${phone}">Ligar</a>` : ''}</div></div>`;
+}
 $('#sosButton').addEventListener('click', () => {
-  const contact = state.contact ? `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>${escapeHtml(state.contact)}</small></div></div>` : `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>Adicione um contato para encontrá-lo rapidamente quando precisar.</small></div></div>`;
   const meds = state.meds.length ? `<p class="medicine-emergency"><strong>Medicamentos cadastrados:</strong> ${state.meds.map(m=>`${escapeHtml(m.name)} ${escapeHtml(m.strength)}`).join(', ')}</p>` : '';
-  $('#sosContent').innerHTML = contact + meds;
+  $('#sosContent').innerHTML = trustedContactCard() + meds;
   $('#contactForm').elements.contact.value = state.contact;
   $('#pharmacyForm').elements.pharmacyName.value = state.pharmacyName;
   $('#pharmacyForm').elements.pharmacyPhone.value = state.pharmacyPhone;
   const digits = state.pharmacyPhone.replace(/[^\d+]/g, '');
   $('#pharmacySaved').innerHTML = state.pharmacyPhone ? `<a class="saved-phone-link" href="tel:${escapeHtml(digits)}">Ligar para ${escapeHtml(state.pharmacyName||'farmácia salva')} · ${escapeHtml(state.pharmacyPhone)}</a>` : '';
   openDialog('sosDialog');
+  $('#closeSosDialog').focus();
 });
+$('#sosDialog').addEventListener('close', () => $('#sosButton').focus());
 $('#pharmacyForm').addEventListener('submit', e => {
   e.preventDefault();
   state.pharmacyName = e.currentTarget.elements.pharmacyName.value.trim();
@@ -1168,7 +1177,7 @@ $('#contactForm').addEventListener('submit', e => {
   e.preventDefault();
   state.contact = e.currentTarget.elements.contact.value.trim();
   save();
-  $('#sosContent').innerHTML = state.contact ? `<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>${escapeHtml(state.contact)}</small></div></div>` : '<div class="contact-card"><span class="contact-card-icon">♧</span><div><strong>Contato de confiança</strong><small>Adicione um contato para encontrá-lo rapidamente quando precisar.</small></div></div>';
+  $('#sosContent').innerHTML = trustedContactCard();
   showToast('Contato salvo neste aparelho.');
 });
 
