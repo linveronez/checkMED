@@ -6,6 +6,7 @@
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   const LOG_STATUSES = ['taken', 'taken_late', 'skipped'];
+  const SYNC_KEYS = ['meds', 'events', 'logs', 'dailyEntries', 'name', 'contact', 'pharmacyName', 'pharmacyPhone', 'hideMedicationNameInNotification'];
 
   function normalizeTime(value) {
     const text = String(value ?? '').trim();
@@ -183,5 +184,64 @@
     };
   }
 
-  return { normalizeTime, parseTimeList, calculateStockDays, formatAmount, groupDoses, pendingDoseIds, undoDoseBatch, isDoseLate, reminderStage, snapshotState, adherenceSummary, adherenceRatio, buildCalendarEvent, migrateState, validateBackup };
+  function buildSyncPayload(state) {
+    const payload = {};
+    for (const key of SYNC_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(state || {}, key)) {
+        payload[key] = JSON.parse(JSON.stringify(state[key]));
+      }
+    }
+    return payload;
+  }
+
+  function applySyncPayload(state, payload, defaults) {
+    const validated = validateBackup(payload, defaults);
+    const migrated = migrateState(validated, defaults);
+    const result = { ...state };
+    for (const key of SYNC_KEYS) result[key] = migrated[key];
+    for (const key of ['notificationsEnabled', 'notificationSent', 'lastBackupAt', 'dataConsentAt']) {
+      if (Object.prototype.hasOwnProperty.call(state, key)) result[key] = state[key];
+    }
+    result.onboardingComplete = true;
+    return result;
+  }
+
+  function hasLocalData(state) {
+    return Boolean(state && (
+      (Array.isArray(state.meds) && state.meds.length) ||
+      (Array.isArray(state.logs) && state.logs.length) ||
+      (Array.isArray(state.events) && state.events.length) ||
+      (state.dailyEntries && typeof state.dailyEntries === 'object' && Object.keys(state.dailyEntries).length)
+    ));
+  }
+
+  function summarizeForConflict(stateOrPayload) {
+    const value = stateOrPayload || {};
+    return {
+      meds: Array.isArray(value.meds) ? value.meds.length : 0,
+      logs: Array.isArray(value.logs) ? value.logs.length : 0,
+      events: Array.isArray(value.events) ? value.events.length : 0,
+      entries: value.dailyEntries && typeof value.dailyEntries === 'object' ? Object.keys(value.dailyEntries).length : 0,
+    };
+  }
+
+  function decideSyncAction({ serverVersion = 0, lastSyncedVersion = 0, dirty = false, hasLocalData: localData = false, sameAccount = false } = {}) {
+    const server = Number.isInteger(Number(serverVersion)) ? Number(serverVersion) : 0;
+    const last = Number.isInteger(Number(lastSyncedVersion)) ? Number(lastSyncedVersion) : 0;
+    if (!sameAccount) {
+      if (!localData && server === 0) return 'noop';
+      if (!localData && server > 0) return 'pull';
+      return 'conflict';
+    }
+    if (server === 0) {
+      if (last > 0) return 'conflict';
+      return localData ? 'upload' : 'noop';
+    }
+    if (last === 0) return localData ? 'conflict' : 'pull';
+    if (server > last) return dirty ? 'conflict' : 'pull';
+    if (server < last) return 'conflict';
+    return dirty ? 'upload' : 'noop';
+  }
+
+  return { normalizeTime, parseTimeList, calculateStockDays, formatAmount, groupDoses, pendingDoseIds, undoDoseBatch, isDoseLate, reminderStage, snapshotState, adherenceSummary, adherenceRatio, buildCalendarEvent, migrateState, validateBackup, buildSyncPayload, applySyncPayload, hasLocalData, summarizeForConflict, decideSyncAction };
 });

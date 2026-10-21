@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../core.js');
+const api = require('../api.js');
 
 test('normalizes valid times and rejects invalid times', () => {
   assert.equal(core.normalizeTime('8:00'), '08:00');
@@ -103,4 +104,113 @@ test('exports calendar events with a one-day reminder', () => {
   const ics = core.buildCalendarEvent({ id: 'event-1', date: '2026-10-20', time: '10:30', title: 'Consulta', type: 'Retorno' }, new Date('2026-10-19T12:00:00.000Z'));
   assert.match(ics, /BEGIN:VALARM\r\nTRIGGER:-P1D\r\nACTION:DISPLAY/);
   assert.match(ics, /SUMMARY:Consulta/);
+});
+
+test('buildSyncPayload contains only the nine approved cloud fields', () => {
+  const payload = core.buildSyncPayload({
+    meds: [], events: [], logs: [], dailyEntries: {}, name: 'Lince', contact: '',
+    pharmacyName: '', pharmacyPhone: '', hideMedicationNameInNotification: true,
+    notificationsEnabled: true, notificationSent: ['local-only'], pin: '1234',
+  });
+  assert.deepEqual(Object.keys(payload).sort(), [
+    'contact', 'dailyEntries', 'events', 'hideMedicationNameInNotification', 'logs',
+    'meds', 'name', 'pharmacyName', 'pharmacyPhone',
+  ].sort());
+  assert.equal(payload.pin, undefined);
+  assert.equal(payload.notificationsEnabled, undefined);
+});
+
+test('applySyncPayload validates data and preserves device-only settings', () => {
+  const defaults = {
+    schemaVersion: 2, meds: [], events: [], logs: [], dailyEntries: {}, name: '', contact: '',
+    pharmacyName: '', pharmacyPhone: '', notificationsEnabled: false,
+    hideMedicationNameInNotification: true, notificationSent: [], lastBackupAt: '',
+    onboardingComplete: false, dataConsentAt: '',
+  };
+  const local = {
+    ...defaults, notificationsEnabled: true, notificationSent: ['local-reminder'],
+    lastBackupAt: 'local-backup', dataConsentAt: 'local-consent', onboardingComplete: false,
+    localPin: 'must-not-be-overwritten',
+  };
+  const result = core.applySyncPayload(local, {
+    meds: [{ id: 'm1', name: 'Losartana', mode: 'daily', stock: 9, times: ['08:00'] }],
+    events: [], logs: [], dailyEntries: {}, name: 'Nuvem', contact: '', pharmacyName: '',
+    pharmacyPhone: '', hideMedicationNameInNotification: false, localPin: 'attacker',
+  }, defaults);
+  assert.equal(result.name, 'Nuvem');
+  assert.equal(result.notificationsEnabled, true);
+  assert.deepEqual(result.notificationSent, ['local-reminder']);
+  assert.equal(result.lastBackupAt, 'local-backup');
+  assert.equal(result.dataConsentAt, 'local-consent');
+  assert.equal(result.onboardingComplete, true);
+  assert.equal(result.localPin, 'must-not-be-overwritten');
+  assert.throws(() => core.applySyncPayload(local, { meds: 'inválido', events: [], logs: [] }, defaults));
+});
+
+test('hasLocalData and summarizeForConflict report snapshot counts', () => {
+  assert.equal(core.hasLocalData({ meds: [], events: [], logs: [], dailyEntries: {} }), false);
+  const value = { meds: [{}], logs: [{}, {}], events: [{}], dailyEntries: { '2026-10-21': {}, '2026-10-20': {} } };
+  assert.equal(core.hasLocalData(value), true);
+  assert.deepEqual(core.summarizeForConflict(value), { meds: 1, logs: 2, events: 1, entries: 2 });
+  assert.deepEqual(core.summarizeForConflict({}), { meds: 0, logs: 0, events: 0, entries: 0 });
+});
+
+test('decideSyncAction covers account, version, dirty and data combinations', () => {
+  const cases = [
+    [{ serverVersion: 0, lastSyncedVersion: 0, dirty: false, hasLocalData: false, sameAccount: false }, 'noop'],
+    [{ serverVersion: 3, lastSyncedVersion: 0, dirty: false, hasLocalData: false, sameAccount: false }, 'pull'],
+    [{ serverVersion: 3, lastSyncedVersion: 0, dirty: false, hasLocalData: true, sameAccount: false }, 'conflict'],
+    [{ serverVersion: 0, lastSyncedVersion: 0, dirty: false, hasLocalData: true, sameAccount: false }, 'conflict'],
+    [{ serverVersion: 0, lastSyncedVersion: 0, dirty: false, hasLocalData: true, sameAccount: true }, 'upload'],
+    [{ serverVersion: 0, lastSyncedVersion: 4, dirty: false, hasLocalData: false, sameAccount: true }, 'conflict'],
+    [{ serverVersion: 0, lastSyncedVersion: 0, dirty: false, hasLocalData: false, sameAccount: true }, 'noop'],
+    [{ serverVersion: 3, lastSyncedVersion: 0, dirty: false, hasLocalData: false, sameAccount: true }, 'pull'],
+    [{ serverVersion: 3, lastSyncedVersion: 0, dirty: true, hasLocalData: true, sameAccount: true }, 'conflict'],
+    [{ serverVersion: 5, lastSyncedVersion: 4, dirty: false, hasLocalData: true, sameAccount: true }, 'pull'],
+    [{ serverVersion: 5, lastSyncedVersion: 4, dirty: true, hasLocalData: true, sameAccount: true }, 'conflict'],
+    [{ serverVersion: 4, lastSyncedVersion: 4, dirty: false, hasLocalData: true, sameAccount: true }, 'noop'],
+    [{ serverVersion: 4, lastSyncedVersion: 4, dirty: true, hasLocalData: true, sameAccount: true }, 'upload'],
+    [{ serverVersion: 2, lastSyncedVersion: 4, dirty: false, hasLocalData: true, sameAccount: true }, 'conflict'],
+  ];
+  for (const [input, expected] of cases) assert.equal(core.decideSyncAction(input), expected, JSON.stringify(input));
+});
+
+test('api client sends bearer token and returns JSON', async () => {
+  const values = new Map([['checkmed.auth', JSON.stringify({ token: 'session-token' })]]);
+  const storage = { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) };
+  let requestOptions;
+  const client = api.createClient({
+    apiBase: 'https://api.example.test/', storage,
+    fetchImpl: async (url, options) => {
+      assert.equal(url, 'https://api.example.test/api/auth/me');
+      requestOptions = options;
+      return { ok: true, status: 200, json: async () => ({ accountId: 'abc' }) };
+    },
+  });
+  assert.deepEqual(await client.request('/auth/me'), { accountId: 'abc' });
+  assert.equal(requestOptions.headers.Authorization, 'Bearer session-token');
+  assert.equal(requestOptions.cache, 'no-store');
+});
+
+test('api client clears auth on 401 and normalizes conflict versions', async () => {
+  const values = new Map([['checkmed.auth', JSON.stringify({ token: 'session-token' })]]);
+  const storage = { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) };
+  let expiredMessage = '';
+  const unauthorized = api.createClient({
+    apiBase: 'https://api.example.test', storage, onUnauthorized: message => { expiredMessage = message; },
+    fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error: 'session_expired', message: 'backend' }) }),
+  });
+  await assert.rejects(unauthorized.request('/auth/me'), error => error.status === 401 && error.error === 'session_expired');
+  assert.equal(values.has('checkmed.auth'), false);
+  assert.match(expiredMessage, /seus dados deste aparelho continuam aqui/);
+  const conflict = api.createClient({
+    apiBase: 'https://api.example.test', storage,
+    fetchImpl: async () => ({ ok: false, status: 409, json: async () => ({ error: 'sync_conflict', message: 'Conflito', serverVersion: 7 }) }),
+  });
+  await assert.rejects(conflict.request('/sync'), error => error.status === 409 && error.serverVersion === 7);
+});
+
+test('api client reports timeout when fetch does not finish', async () => {
+  const client = api.createClient({ apiBase: 'https://api.example.test', timeoutMs: 5, fetchImpl: () => new Promise(() => {}) });
+  await assert.rejects(client.request('/auth/me'), error => error.error === 'timeout');
 });
