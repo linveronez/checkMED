@@ -41,7 +41,7 @@ def issue_session(cursor, user_id, device_label=""):
     token = new_session_token()
     cursor.execute(
         "INSERT INTO sessions (user_id, token_hash, device_label, expires_at, last_used_at) VALUES (%s,%s,%s,%s,%s)",
-        (user_id, token_hash(token), (device_label or "")[:100], datetime.now(timezone.utc) + timedelta(days=current_app.config["SESSION_DAYS"]), datetime.now(timezone.utc)),
+        (user_id, token_hash(token), (device_label[:100] if isinstance(device_label, str) else ""), datetime.now(timezone.utc) + timedelta(days=current_app.config["SESSION_DAYS"]), datetime.now(timezone.utc)),
     )
     return token
 
@@ -106,6 +106,10 @@ def register():
             )
             inserted = cursor.fetchone()
             if not inserted:
+                cursor.execute("SELECT id FROM users WHERE email_normalized=%s", (email,))
+                existing = cursor.fetchone()
+                if existing:
+                    cursor.execute("UPDATE auth_attempts SET user_id=%s WHERE id=%s", (existing["id"], registration_attempt_id))
                 return jsonify(error="email_in_use", message="Este e-mail já está cadastrado. Entre na sua conta ou recupere o acesso."), 409
             user_id = inserted["id"]
             cursor.execute("UPDATE auth_attempts SET user_id=%s WHERE id=%s", (user_id, registration_attempt_id))
@@ -212,7 +216,7 @@ def reset_with_code():
             cursor.execute("SELECT id,recovery_code_hash,recovery_code_expires_at FROM users WHERE email_normalized=%s", (email,))
             user = cursor.fetchone()
             candidate = data.get("recoveryCode", "")
-            valid = user and user["recovery_code_expires_at"] and user["recovery_code_expires_at"].timestamp() > __import__("time").time() and isinstance(candidate, str) and verify_recovery_code(candidate, user["recovery_code_hash"])
+            valid = user and user["recovery_code_expires_at"] and user["recovery_code_expires_at"].timestamp() > __import__("time").time() and isinstance(candidate, str) and len(candidate) <= 32 and verify_recovery_code(candidate, user["recovery_code_hash"])
             if not valid:
                 record_failure(cursor, key, "reset", user["id"] if user else None)
                 return jsonify(error="invalid_recovery_code", message="E-mail ou código de recuperação incorretos."), 401

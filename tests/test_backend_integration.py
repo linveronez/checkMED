@@ -94,11 +94,15 @@ def test_registration_login_rate_limit_sessions_and_password_flows(account_clien
     new_login = client.post("/api/auth/login", json={"email": email, "password": "senha-final-789"}, headers={"X-Forwarded-For": "203.0.113.90"})
     assert new_login.status_code == 200
     assert new_code
+    logout = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {new_login.get_json()['token']}"})
+    assert logout.status_code == 204
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {new_login.get_json()['token']}"}).status_code == 401
 
 
 def test_sync_conflicts_limits_and_account_deletion(account_client):
     client, app, email = account_client
     account = register(client, email).get_json()
+    assert register(client, email).status_code == 409
     account_id = account["accountId"]
     auth = {"Authorization": f"Bearer {account['token']}"}
     assert client.get("/api/sync", headers=auth).status_code == 404
@@ -109,7 +113,7 @@ def test_sync_conflicts_limits_and_account_deletion(account_client):
     assert second.status_code == 200 and second.get_json()["version"] == 2
     conflict = client.put("/api/sync", headers=auth, json={"baseVersion": 1, "payload": snapshot()})
     assert conflict.status_code == 409 and conflict.get_json()["serverVersion"] == 2
-    oversized_payload = {"meds": [], "events": [], "logs": [], "name": "x" * 5000}
+    oversized_payload = {"meds": [], "events": [{"id": f"e{i}", "title": "T" * 100, "date": "2026-10-22", "note": "N" * 200} for i in range(40)], "logs": [], "dailyEntries": {}}
     oversized = client.put("/api/sync", headers=auth, json={"baseVersion": 2, "payload": oversized_payload})
     assert oversized.status_code == 413
     deleted_snapshot = client.delete("/api/sync", headers=auth)
@@ -121,7 +125,9 @@ def test_sync_conflicts_limits_and_account_deletion(account_client):
     removed = client.delete("/api/account", headers=auth, json={"password": "senha-forte-123", "confirm": "EXCLUIR"})
     assert removed.status_code == 204
     from backend.db import connect
+    from uuid import UUID
+    account_uuid = UUID(account_id)
     with app.app_context(), connect() as connection, connection.cursor() as cursor:
-        for table, column, value in (("users", "id", account_id), ("sessions", "user_id", account_id), ("snapshots", "user_id", account_id), ("consents", "user_id", account_id), ("auth_attempts", "user_id", account_id)):
-            cursor.execute(f"SELECT count(*) AS total FROM {table} WHERE {column}=%s", (account_id,))
+        for table, column in (("users", "id"), ("sessions", "user_id"), ("snapshots", "user_id"), ("consents", "user_id"), ("auth_attempts", "user_id")):
+            cursor.execute(f"SELECT count(*) AS total FROM {table} WHERE {column}=%s", (account_uuid,))
             assert cursor.fetchone()["total"] == 0, f"{table} permaneceu após exclusão"

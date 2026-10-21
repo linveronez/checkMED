@@ -11,6 +11,7 @@ def test_password_hash_uses_scrypt_and_verifies():
     assert encoded.startswith("scrypt$")
     assert verify_password("senha segura", encoded)
     assert not verify_password("senha errada", encoded)
+    assert not verify_password("x" * 129, encoded)
 
 
 def test_recovery_code_has_about_one_hundred_bits_and_compares_normalized():

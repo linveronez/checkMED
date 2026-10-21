@@ -17,6 +17,8 @@ def hash_password(password):
 
 def verify_password(password, encoded):
     try:
+        if not isinstance(password, str) or len(password) > 128:
+            return False
         scheme, n, r, p, salt_text, digest_text = encoded.split("$")
         if scheme != "scrypt":
             return False

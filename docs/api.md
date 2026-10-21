@@ -103,6 +103,8 @@ O cliente deve buscar o snapshot e pedir ao usuário que decida como prosseguir;
 
 O payload aceita apenas `meds`, `events`, `logs`, `dailyEntries`, `name`, `contact`, `pharmacyName`, `pharmacyPhone` e `hideMedicationNameInNotification`. Chaves locais como PIN, notificações e preferências do aparelho são descartadas. Datas usam `YYYY-MM-DD`, horários `HH:MM`; status de log: `taken`, `taken_late` ou `skipped`. Quantidades de dose devem ser numéricas e positivas; estoque, numérico e não negativo. `MAX_PAYLOAD_BYTES` limita o JSON da sincronização (padrão 1 MiB).
 
+Limites máximos de texto: IDs até 128 caracteres; nomes, títulos e contato até 200; tipo e humor até 80; apresentação (`strength`) até 100; telefone de farmácia até 40; horário até 5; `at`/`updatedAt` até 64; anotações e perguntas até 4.000.
+
 ### Exclusão de conta
 
 ```http

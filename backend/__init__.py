@@ -13,7 +13,7 @@ def create_app(test_config=None):
         TEST_DATABASE_URL=os.environ.get("TEST_DATABASE_URL", ""),
         FRONTEND_ORIGINS=os.environ.get(
             "CHECKMED_FRONTEND_ORIGINS",
-            "http://localhost:8000,http://127.0.0.1:8000",
+            "http://localhost:8000,http://127.0.0.1:8000,http://localhost:8765,http://127.0.0.1:8765",
         ),
         SESSION_DAYS=int(os.environ.get("SESSION_DAYS", "30")),
         MAX_PAYLOAD_BYTES=int(os.environ.get("MAX_PAYLOAD_BYTES", str(1024 * 1024))),
@@ -72,7 +72,7 @@ def create_app(test_config=None):
     def internal_error(error):
         if request.path.startswith("/api/"):
             app.logger.warning("CheckMed request failed: internal API error")
-            return jsonify(error="service_unavailable", message="Não foi possível concluir agora. Tente novamente em instantes."), 500
+            return jsonify(error="internal_error", message="Não foi possível concluir agora. Tente novamente em instantes."), 500
         return error
 
     @app.get("/")

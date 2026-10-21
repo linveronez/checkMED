@@ -20,7 +20,9 @@ def main(database_url=None):
                 cursor.execute("SELECT 1 FROM schema_migrations WHERE name=%s", (path.name,))
                 if cursor.fetchone():
                     continue
-                cursor.execute(path.read_text(encoding="utf-8"))
+                for statement in path.read_text(encoding="utf-8").split(";"):
+                    if statement.strip():
+                        cursor.execute(statement)
                 cursor.execute("INSERT INTO schema_migrations (name) VALUES (%s)", (path.name,))
                 print(f"Aplicada: {path.name}")
 
