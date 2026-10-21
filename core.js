@@ -211,7 +211,8 @@
       (Array.isArray(state.meds) && state.meds.length) ||
       (Array.isArray(state.logs) && state.logs.length) ||
       (Array.isArray(state.events) && state.events.length) ||
-      (state.dailyEntries && typeof state.dailyEntries === 'object' && Object.keys(state.dailyEntries).length)
+      (state.dailyEntries && typeof state.dailyEntries === 'object' && Object.keys(state.dailyEntries).length) ||
+      ['name', 'contact', 'pharmacyName', 'pharmacyPhone'].some(key => typeof state[key] === 'string' && state[key].trim())
     ));
   }
 

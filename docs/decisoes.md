@@ -23,3 +23,19 @@
 | Extra | Chaves do payload fora da lista permitida são descartadas, e a API grava `payload_schema=1`. | Impede sincronizar preferências locais ou futuras chaves não revisadas e identifica a forma atual do snapshot no banco. |
 | Extra | Textos do snapshot recebem limites por campo entre 5 e 4.000 caracteres. | O `validateBackup` do frontend não centraliza limites de texto; a API escolhe limites explícitos para conter payloads excessivos e documenta esses valores no contrato. |
 | Extra | O `accountId` retornado é o UUID da conta e a confirmação de exclusão usa a palavra `EXCLUIR`. | Mantém identificador estável entre aparelhos e confirmação independente da localização. |
+
+## Interface de conta, segurança e privacidade
+
+| Etapa | Decisão | Motivo |
+| --- | --- | --- |
+| 3 | Conta e nuvem são opcionais; o navegador continua sendo a fonte local de uso sem cadastro. | Mantém o fluxo atual disponível mesmo sem backend, conexão ou autorização de nuvem. |
+| 3 | Restaurar um snapshot cria uma cópia local antes de substituir dados. Conflitos só são resolvidos após escolha explícita; não há mesclagem de registros. | O estoque e os registros de doses podem divergir entre aparelhos e não são seguros para mesclagem automática. |
+| 3 | Sincronização automática é opt-in, espera após mudanças e respeita intervalo entre envios. Erros preservam o estado local; `409` pausa o fluxo e abre a escolha de conflito. | Reduz envios em excesso sem transformar uma cópia remota antiga em sobrescrita silenciosa. |
+| 3 | CSP é criada por `config.js` com `script-src 'self'` e `connect-src` limitado à origem de `apiBase`. | O front-end estático pode usar uma API separada sem abrir conexões para qualquer origem. A hospedagem final também deve publicar a mesma política em cabeçalho HTTP. |
+| 3 | Service Worker atualiza o shell para cache `v07`, inclui os arquivos de conta e páginas legais e nunca trata caminho `/api` como recurso offline. | Usuário recebe a nova interface após a ativação do worker e respostas de API não entram no cache do PWA. |
+| 3 | Termos e privacidade são publicados como rascunhos com campos operacionais explícitos a confirmar. | Provedor, jurisdição, retenção, responsável e canal de direitos dependem da implantação e do responsável do projeto. |
+| 3 | Alteração de senha mantém a sessão atual; redefinição por código mostra e exige guardar o código rotacionado, conforme contrato da API. | Evita bloquear uma sessão válida por erro de senha atual e preserva o fluxo de recuperação sem provedor de e-mail. |
+
+## Roteiro manual antes da documentação final
+
+Consulte [docs/teste-manual.md](teste-manual.md) para os fluxos de ponta a ponta que dependem de uma API implantada e de dois navegadores/dispositivos.

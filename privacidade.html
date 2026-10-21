@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827"><link rel="stylesheet" href="styles.css">
+  <title>Privacidade — CheckMed (rascunho)</title>
+</head>
+<body><main class="app-shell legal-page">
+  <header class="topbar"><a class="text-button" href="./">← Voltar ao CheckMed</a></header>
+  <article class="form-card">
+    <span class="eyebrow">DOCUMENTO EM REVISÃO</span><h1>Privacidade</h1>
+    <p class="subtle">Rascunho para revisão do responsável pelo projeto antes de publicar. Versão 2026-10-v1.</p>
+    <h2>Quem opera o CheckMed</h2><p>Responsável pelo projeto: <strong>[identificação e contato a confirmar]</strong>. Hospedagem da interface, API e banco de dados: <strong>[provedores, regiões e contatos a confirmar antes da publicação]</strong>.</p>
+    <h2>Quais dados são usados</h2><p>O CheckMed pode guardar nome/apelido, medicamentos, horários, estoque, registros de doses, humor, anotações, perguntas para consultas, compromissos e informações de contato preenchidas por você. O PIN, permissões/estado de notificações e metadados de backup permanecem no aparelho e não fazem parte do snapshot de sincronização. A preferência para ocultar nomes nas notificações está incluída no snapshot, conforme o contrato da API.</p>
+    <h2>Armazenamento local e conta</h2><p>Sem conta, os registros são guardados no armazenamento do navegador deste aparelho. O navegador ou sistema pode apagá-los. Se você criar uma conta e aceitar a sincronização, os campos descritos em <a href="docs/api.md">contrato da API</a> serão enviados ao servidor CheckMed e guardados como um snapshot versionado para restaurar em outro aparelho. A sincronização é opcional. O PIN local não criptografa os dados.</p>
+    <h2>Finalidades e base de uso</h2><p>Os dados são usados para apresentar a rotina e os registros que você adicionou e, mediante consentimento, para manter uma cópia entre aparelhos. O tratamento de dados de conta e saúde, suas bases legais e os papéis de controlador/operador precisam de validação pelo responsável do projeto antes de uso real. Não use este protótipo para dados de terceiros sem autorização apropriada.</p>
+    <h2>Compartilhamento, terceiros e transferência</h2><p>Não há compartilhamento familiar implementado. A busca por serviços no SOS pode abrir o Google Maps e links para serviços públicos abrem páginas externas. Ao ativar conta, provedores de hospedagem e banco poderão processar dados para operar a infraestrutura; seus nomes, localidades, contratos e transferências internacionais ainda precisam ser confirmados e informados aqui antes da publicação.</p>
+    <h2>Retenção, cópias e exclusão</h2><p>Você pode exportar um backup, apagar a cópia da nuvem ou excluir a conta pelo Perfil. Excluir da aplicação não determina por si só o prazo de retenção de backups técnicos dos provedores; confirmar prazos e processo de descarte antes do lançamento. A cópia exportada fica sob seus cuidados. Apagar os dados locais do navegador é uma ação separada.</p>
+    <h2>Segurança e incidentes</h2><p>A API usa HTTPS quando implantada corretamente, hash de senha, tokens armazenados como hash no banco e controle de versão para conflitos. Isso não elimina todos os riscos. O processo de atendimento a solicitações de titulares, incidentes, retenção de logs e contato de privacidade ainda deve ser definido pelo responsável antes de uso público.</p>
+    <h2>Crianças e adolescentes</h2><p>Este rascunho não define regras suficientes para uso por crianças ou adolescentes. Público, consentimentos e salvaguardas precisam ser avaliados antes de permitir esse uso.</p>
+    <h2>Seus direitos e contato</h2><p>Para perguntas, acesso, correção ou exclusão, use: <strong>[canal de contato a definir]</strong>. Este canal e os prazos de atendimento precisam ser configurados antes da publicação.</p>
+    <p class="fine-print">CheckMed é um organizador de registros e não presta diagnóstico, prescrição ou atendimento de emergência. Para emergência, ligue 192; para apoio emocional, ligue 188.</p>
+  </article>
+</main></body></html>

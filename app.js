@@ -76,6 +76,12 @@ function loadSyncMetadata() {
 }
 
 let syncMetadata = loadSyncMetadata();
+let pendingPullSnapshot = null;
+let pendingConflictSnapshot = null;
+let syncPausedForConflict = false;
+let autoSyncTimer = 0;
+let autoSyncRunning = false;
+let lastAutoSyncAt = 0;
 
 function writeSyncMetadata() {
   localStorage.setItem(SYNC_KEY, JSON.stringify(syncMetadata));
@@ -85,7 +91,130 @@ function markDirty() {
   if (applyingSync || !readAuth() || !window.CHECKMED_CONFIG?.apiBase) return;
   syncMetadata.dirty = true;
   writeSyncMetadata();
+  syncPausedForConflict = false;
   if (syncMetadata.auto && typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+
+function emptySyncPayload() {
+  return { meds: [], events: [], logs: [], dailyEntries: {}, name: '', contact: '', pharmacyName: '', pharmacyPhone: '', hideMedicationNameInNotification: true };
+}
+
+async function fetchServerSnapshot() {
+  try { return await accountApi.request('/sync'); }
+  catch (error) {
+    if (error.status === 404) return { version: 0, payload: emptySyncPayload(), updatedAt: '' };
+    throw error;
+  }
+}
+
+function snapshotCounts(value) {
+  return CheckMedCore.summarizeForConflict(value);
+}
+
+function setConflictSide(prefix, value, updatedAt = '') {
+  const counts = snapshotCounts(value);
+  $(`#conflict${prefix}Meds`).textContent = counts.meds;
+  $(`#conflict${prefix}Logs`).textContent = counts.logs;
+  $(`#conflict${prefix}Events`).textContent = counts.events;
+  $(`#conflict${prefix}Entries`).textContent = counts.entries;
+  const stamp = updatedAt ? Date.parse(updatedAt) : NaN;
+  $(`#conflict${prefix}Updated`).textContent = Number.isFinite(stamp) ? `Atualizado em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(stamp))}` : prefix === 'Cloud' ? 'Sem cópia na nuvem.' : 'Dados salvos neste navegador.';
+}
+
+function openSyncConflict(snapshot, accountId) {
+  pendingConflictSnapshot = { ...snapshot, accountId };
+  syncPausedForConflict = true;
+  setConflictSide('Cloud', snapshot.payload || emptySyncPayload(), snapshot.updatedAt);
+  setConflictSide('Local', state, '');
+  openDialog('syncConflictDialog');
+}
+
+async function applyCloudSnapshot(snapshot, accountId) {
+  // Validate and preserve a rollback copy before touching current data.
+  const nextState = CheckMedCore.applySyncPayload(state, snapshot.payload || emptySyncPayload(), DEFAULT_STATE);
+  CheckMedCore.snapshotState(localStorage, KEY, 'checkmed.presync', `${new Date().toISOString().replace(/[:.]/g, '-')}-${uid()}`);
+  const previousState = JSON.parse(JSON.stringify(state));
+  applyingSync = true;
+  try { Object.assign(state, nextState); save(); }
+  catch (error) { Object.assign(state, previousState); throw error; }
+  finally { applyingSync = false; }
+  syncMetadata.accountId = accountId;
+  syncMetadata.lastSyncedVersion = snapshot.version || 0;
+  syncMetadata.lastSyncedAt = snapshot.updatedAt || new Date().toISOString();
+  syncMetadata.dirty = false;
+  writeSyncMetadata();
+  render();
+  renderAccountCard();
+  nav('today');
+}
+
+async function uploadCurrentSnapshot(baseVersion, session, quiet = false) {
+  const result = await accountApi.request('/sync', { method: 'PUT', body: { baseVersion, deviceId: syncMetadata.deviceId, payload: CheckMedCore.buildSyncPayload(state) } });
+  syncMetadata.accountId = session.accountId;
+  syncMetadata.lastSyncedVersion = result.version;
+  syncMetadata.lastSyncedAt = new Date().toISOString();
+  syncMetadata.dirty = false;
+  writeSyncMetadata();
+  renderAccountCard();
+  if (!quiet) showToast('Seus dados foram sincronizados.');
+  return result;
+}
+
+async function runAccountSync(session, { manual = false, automatic = false } = {}) {
+  if (navigator.onLine === false) throw new Error('Sem conexão. Seus dados continuam salvos neste aparelho.');
+  if (syncPausedForConflict && automatic) return;
+  const snapshot = await fetchServerSnapshot();
+  const sameAccount = syncMetadata.accountId === session.accountId;
+  const action = CheckMedCore.decideSyncAction({ sameAccount, hasLocalData: CheckMedCore.hasLocalData(state), serverVersion: snapshot.version || 0, lastSyncedVersion: sameAccount ? syncMetadata.lastSyncedVersion : 0, dirty: syncMetadata.dirty });
+  if (action === 'noop') {
+    syncMetadata.accountId = session.accountId;
+    syncMetadata.lastSyncedVersion = snapshot.version || 0;
+    syncMetadata.lastSyncedAt = snapshot.updatedAt || syncMetadata.lastSyncedAt;
+    writeSyncMetadata(); renderAccountCard();
+  } else if (action === 'upload') {
+    try { await uploadCurrentSnapshot(snapshot.version || 0, session, automatic); }
+    catch (error) {
+      if (error.status !== 409) throw error;
+      openSyncConflict(await fetchServerSnapshot(), session.accountId);
+    }
+  } else if (action === 'pull') {
+    pendingPullSnapshot = { snapshot, accountId: session.accountId };
+    const counts = snapshotCounts(snapshot.payload || emptySyncPayload());
+    $('#pullSnapshotDetails').textContent = `${counts.meds} medicamentos · ${counts.logs} registros · ${counts.events} compromissos${snapshot.updatedAt ? ` · atualizado em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(snapshot.updatedAt))}` : ''}.`;
+    openDialog('syncPullDialog');
+  } else if (action === 'conflict') openSyncConflict(snapshot, session.accountId);
+  if (manual && action === 'noop') showToast('Este aparelho já está atualizado.');
+}
+
+async function handleAccountLogin(session) {
+  try { await runAccountSync(session); }
+  catch (error) { showToast(error.message || 'Não foi possível sincronizar agora. Seus dados locais foram mantidos.'); }
+  nav('today'); startAppGate();
+}
+
+async function onNewAccountCodeAccepted() {
+  const session = readAuth();
+  if (!session) return;
+  try {
+    const snapshot = await fetchServerSnapshot();
+    if (CheckMedCore.hasLocalData(state)) openSyncConflict(snapshot, session.accountId);
+    else await uploadCurrentSnapshot(0, session);
+  } catch (error) { showToast(error.message || 'Conta criada. A sincronização poderá ser feita depois.'); }
+}
+
+function scheduleAutoSync() {
+  clearTimeout(autoSyncTimer);
+  if (!syncMetadata.auto || !readAuth() || !window.CHECKMED_CONFIG?.apiBase || navigator.onLine === false || syncPausedForConflict) return;
+  const lastSavedSync = Date.parse(syncMetadata.lastSyncedAt) || 0;
+  const previousAutoSync = Math.max(lastAutoSyncAt, lastSavedSync);
+  const delay = Math.max(10000, 30000 - (Date.now() - previousAutoSync));
+  autoSyncTimer = setTimeout(async () => {
+    if (autoSyncRunning) return;
+    autoSyncRunning = true; lastAutoSyncAt = Date.now();
+    try { await runAccountSync(readAuth(), { automatic: true }); }
+    catch (error) { showToast(error.message || 'A sincronização automática será tentada novamente.'); }
+    finally { autoSyncRunning = false; }
+  }, delay);
 }
 
 const accountApi = CheckMedApi.createClient({
@@ -191,6 +320,10 @@ function clearLocalHealthData() {
   Object.assign(state, JSON.parse(JSON.stringify(DEFAULT_STATE)));
   sessionStorage.removeItem('checkmed.welcomeBack');
   welcomeBackSummary = '';
+  syncMetadata.lastSyncedVersion = 0;
+  syncMetadata.lastSyncedAt = '';
+  syncMetadata.dirty = false;
+  writeSyncMetadata();
   save();
   nav('today');
   startAppGate();
@@ -358,15 +491,16 @@ let toastTimer;
 
 function showToast(text, action = null) {
   const t = $('#toast'),
-    button = $('#toastAction');
+    button = $('#toastAction'), replacement = button.cloneNode(true);
+  button.replaceWith(replacement);
   $('#toastMessage').textContent = text;
-  button.hidden = !action;
-  button.textContent = action?.label || '';
-  button.onclick = action ? () => {
+  replacement.hidden = !action;
+  replacement.textContent = action?.label || '';
+  if (action) replacement.addEventListener('click', () => {
     action.onClick();
-    button.hidden = true;
+    replacement.hidden = true;
     t.classList.remove('show');
-  } : null;
+  }, { once: true });
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), action ? 5000 : 2600);
@@ -1511,9 +1645,74 @@ $('#syncAutoToggle').addEventListener('change', e => {
   if (syncMetadata.auto && typeof scheduleAutoSync === 'function') scheduleAutoSync();
   showToast(syncMetadata.auto ? 'Sincronização automática ativada.' : 'Sincronização automática desativada.');
 });
+$('#syncNowButton').addEventListener('click', async () => {
+  const session = readAuth(); if (!session) return;
+  syncPausedForConflict = false;
+  try { await runAccountSync(session, { manual: true }); }
+  catch (error) { showToast(error.message || 'Não foi possível sincronizar. Seus dados locais foram mantidos.'); }
+});
+$('#acceptCloudPull').addEventListener('click', async () => {
+  if (!pendingPullSnapshot) return;
+  const pending = pendingPullSnapshot;
+  try { await applyCloudSnapshot(pending.snapshot, pending.accountId); pendingPullSnapshot = null; $('#syncPullDialog').close(); showToast('Dados da nuvem restaurados. Uma cópia anterior foi guardada neste aparelho.'); }
+  catch (error) { showToast(error.message || 'Não foi possível restaurar a cópia. Seus dados locais foram mantidos.'); }
+});
+$('#cancelCloudPull').addEventListener('click', () => { pendingPullSnapshot = null; syncPausedForConflict = true; $('#syncPullDialog').close(); });
+$('#syncPullDialog').addEventListener('close', () => { if (pendingPullSnapshot) { pendingPullSnapshot = null; syncPausedForConflict = true; } });
+$('#closeSyncConflict').addEventListener('click', () => $('#deferSyncConflict').click());
+$('#deferSyncConflict').addEventListener('click', () => { syncPausedForConflict = true; $('#syncConflictDialog').close(); });
+$('#useCloudData').addEventListener('click', async () => {
+  if (!pendingConflictSnapshot) return;
+  const pending = pendingConflictSnapshot;
+  try { await applyCloudSnapshot(pending, pending.accountId); pendingConflictSnapshot = null; syncPausedForConflict = false; $('#syncConflictDialog').close(); showToast('Dados da nuvem restaurados. Uma cópia anterior foi guardada neste aparelho.'); }
+  catch (error) { showToast(error.message || 'Não foi possível restaurar a cópia. Os dados locais foram mantidos.'); }
+});
+$('#useLocalData').addEventListener('click', async () => {
+  const session = readAuth(); if (!session) return;
+  try {
+    const latest = await fetchServerSnapshot();
+    await uploadCurrentSnapshot(latest.version || 0, session);
+    pendingConflictSnapshot = null; syncPausedForConflict = false; $('#syncConflictDialog').close();
+  } catch (error) {
+    if (error.status === 409) openSyncConflict(await fetchServerSnapshot(), session.accountId);
+    else showToast(error.message || 'Não foi possível enviar os dados deste aparelho.');
+  }
+});
 $('#logoutButton').addEventListener('click', () => openDialog('logoutDialog'));
 $('#logoutKeepData').addEventListener('click', () => finishLogout(false));
 $('#logoutRemoveData').addEventListener('click', () => finishLogout(true));
+$('#openChangePassword').addEventListener('click', () => { $('#changePasswordForm').reset(); $('#changePasswordMessage').textContent = ''; openDialog('changePasswordDialog'); });
+$('#changePasswordForm').addEventListener('submit', async e => {
+  e.preventDefault(); const form = e.currentTarget;
+  try { await accountApi.request('/auth/change-password', { method: 'POST', body: { currentPassword: form.elements.currentPassword.value, newPassword: form.elements.newPassword.value } }); $('#changePasswordDialog').close(); showToast('Senha alterada. As outras sessões foram encerradas.'); }
+  catch (error) { $('#changePasswordMessage').textContent = error.message || 'Não foi possível trocar a senha.'; }
+});
+$('#openResetPassword').addEventListener('click', () => { $('#resetPasswordForm').reset(); $('#resetPasswordForm').elements.email.value = readAuth()?.user?.email || ''; $('#resetPasswordMessage').textContent = ''; openDialog('resetPasswordDialog'); });
+$('#forgotAccountPassword').addEventListener('click', () => { $('#accountDialog').close(); $('#resetPasswordForm').reset(); $('#resetPasswordMessage').textContent = ''; openDialog('resetPasswordDialog'); });
+$('#resetPasswordForm').addEventListener('submit', async e => {
+  e.preventDefault(); const form = e.currentTarget;
+  try {
+    const result = await accountApi.request('/auth/reset-with-code', { method: 'POST', auth: false, body: { email: form.elements.email.value, recoveryCode: form.elements.recoveryCode.value, newPassword: form.elements.newPassword.value } });
+    localStorage.removeItem(AUTH_KEY); renderAccountCard(); $('#resetPasswordDialog').close(); showRecoveryCode(result.recoveryCode, 'reset'); showToast('Senha redefinida. Guarde o novo código e entre novamente.');
+  } catch (error) { $('#resetPasswordMessage').textContent = error.status === 429 ? 'Muitas tentativas. Aguarde antes de tentar de novo.' : error.message || 'E-mail ou código inválido.'; }
+});
+$('#clearCloudSnapshot').addEventListener('click', async () => {
+  if (!confirm('Apagar a cópia sincronizada da nuvem? Os dados deste aparelho serão mantidos.')) return;
+  try { await accountApi.request('/sync', { method: 'DELETE' }); syncMetadata.accountId = ''; syncMetadata.lastSyncedVersion = 0; syncMetadata.lastSyncedAt = ''; syncMetadata.dirty = false; syncMetadata.auto = false; writeSyncMetadata(); renderAccountCard(); showToast('Cópia da nuvem apagada. Os dados locais continuam neste aparelho.'); }
+  catch (error) { showToast(error.message || 'Não foi possível apagar a cópia da nuvem.'); }
+});
+$('#openDeleteAccount').addEventListener('click', () => { $('#deleteAccountForm').reset(); $('#deleteAccountMessage').textContent = ''; openDialog('deleteAccountDialog'); });
+$('#exportBeforeDelete').addEventListener('click', () => $('#exportButton').click());
+$('#deleteAccountForm').addEventListener('submit', async e => {
+  e.preventDefault(); const form = e.currentTarget, removeLocal = form.elements.removeLocal.checked;
+  if (!confirm('Esta ação é permanente e não pode ser desfeita. Excluir a conta e os dados na nuvem?')) return;
+  try {
+    await accountApi.request('/account', { method: 'DELETE', body: { password: form.elements.password.value, confirm: form.elements.confirm.value } });
+    localStorage.removeItem(AUTH_KEY); syncMetadata = { ...syncMetadata, accountId: '', lastSyncedVersion: 0, lastSyncedAt: '', dirty: false, auto: false }; writeSyncMetadata();
+    $('#deleteAccountDialog').close(); if (removeLocal) { clearLocalHealthData(); localStorage.removeItem(SYNC_KEY); syncMetadata = loadSyncMetadata(); }
+    renderAccountCard(); showToast(removeLocal ? 'Conta e dados locais excluídos.' : 'Conta e cópia na nuvem excluídas. Os dados locais foram mantidos.');
+  } catch (error) { $('#deleteAccountMessage').textContent = error.message || 'Não foi possível excluir a conta.'; }
+});
 $('#recoveryCodeSaved').addEventListener('change', e => {
   $('#continueRecoveryCode').disabled = !e.currentTarget.checked;
   $('#closeRecoveryCode').disabled = !e.currentTarget.checked;
@@ -1647,3 +1846,4 @@ renderAccountCard();
 initStoragePersistence();
 if (corruptStateFound) showToast(`Os dados anteriores foram preservados em ${corruptBackupKey}. O app iniciou vazio para evitar sobrescrever o arquivo corrompido.`);
 startAppGate();
+if (syncMetadata.auto && readAuth()) scheduleAutoSync();

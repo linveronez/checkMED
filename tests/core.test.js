@@ -153,6 +153,7 @@ test('hasLocalData and summarizeForConflict report snapshot counts', () => {
   assert.equal(core.hasLocalData(value), true);
   assert.deepEqual(core.summarizeForConflict(value), { meds: 1, logs: 2, events: 1, entries: 2 });
   assert.deepEqual(core.summarizeForConflict({}), { meds: 0, logs: 0, events: 0, entries: 0 });
+  assert.equal(core.hasLocalData({ meds: [], events: [], logs: [], dailyEntries: {}, name: 'Pessoa' }), true);
 });
 
 test('decideSyncAction covers account, version, dirty and data combinations', () => {
@@ -219,6 +220,17 @@ test('api client keeps an existing session on unauthenticated login errors', asy
   });
   await assert.rejects(client.request('/auth/login', { method: 'POST', auth: false, body: {} }), error => error.message === 'E-mail ou senha incorretos.');
   assert.equal(JSON.parse(values.get('checkmed.auth')).token, 'existing-session');
+});
+
+test('api client keeps a valid session when current password is rejected', async () => {
+  const values = new Map([['checkmed.auth', JSON.stringify({ token: 'session-token' })]]);
+  const storage = { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) };
+  const client = api.createClient({
+    apiBase: 'https://api.example.test', storage,
+    fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error: 'invalid_credentials', message: 'Senha atual incorreta.' }) }),
+  });
+  await assert.rejects(client.request('/auth/change-password', { method: 'POST', body: {} }), error => error.status === 401 && error.message === 'Senha atual incorreta.');
+  assert.equal(JSON.parse(values.get('checkmed.auth')).token, 'session-token');
 });
 
 test('api client reports timeout when fetch does not finish', async () => {

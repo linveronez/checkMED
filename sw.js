@@ -1,5 +1,5 @@
-const CACHE = 'checkmed-shell-v06';
-const ASSETS = ['./', './index.html', './styles.css', './core.js', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = 'checkmed-shell-v07';
+const ASSETS = ['./', './index.html', './styles.css', './config.js', './core.js', './api.js', './app.js', './privacidade.html', './termos.html', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => event.waitUntil(
   caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
@@ -12,7 +12,7 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) return;
+  if (url.origin !== self.location.origin || url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     try {
