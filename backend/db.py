@@ -1,6 +1,7 @@
 """Small per-request PostgreSQL connection helpers (no ORM)."""
 
 from contextlib import contextmanager
+import time
 
 from flask import current_app
 
@@ -14,7 +15,15 @@ def connect(*, test=False):
     import psycopg
     from psycopg.rows import dict_row
 
-    connection = psycopg.connect(url, connect_timeout=10, row_factory=dict_row)
+    connection = None
+    for attempt in range(2):
+        try:
+            connection = psycopg.connect(url, connect_timeout=10, row_factory=dict_row)
+            break
+        except psycopg.OperationalError:
+            if attempt:
+                raise
+            time.sleep(0.25)
     try:
         yield connection
         connection.commit()

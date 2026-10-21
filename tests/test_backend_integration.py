@@ -22,12 +22,17 @@ def account_client():
     app = create_app({"TESTING": True, "DATABASE_URL": TEST_URL, "TEST_DATABASE_URL": TEST_URL, "SECRET_KEY": "integration-test-secret", "FRONTEND_ORIGINS": "https://checkmed.example", "MAX_PAYLOAD_BYTES": 4096})
     with app.app_context():
         from backend.migrate import main
-        main()
+        main(TEST_URL)
+        from backend.db import connect
+        with connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT coalesce(max(id),0) AS last_id FROM auth_attempts")
+            first_attempt_id = cursor.fetchone()["last_id"]
     email = f"codex-{uuid.uuid4().hex}@example.test"
     yield app.test_client(), app, email
     with app.app_context():
         from backend.db import connect
         with connect() as connection, connection.cursor() as cursor:
+            cursor.execute("DELETE FROM auth_attempts WHERE id>%s", (first_attempt_id,))
             cursor.execute("DELETE FROM users WHERE email_normalized=%s", (email,))
 
 

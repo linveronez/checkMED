@@ -7,10 +7,10 @@ from flask import Flask
 from .db import connect
 
 
-def main():
+def main(database_url=None):
     app = Flask(__name__)
     import os
-    app.config["DATABASE_URL"] = os.environ.get("DATABASE_URL", "")
+    app.config["DATABASE_URL"] = database_url or os.environ.get("DATABASE_URL", "")
     if not app.config["DATABASE_URL"]:
         raise SystemExit("Configure DATABASE_URL antes de aplicar as migrations.")
     with app.app_context(), connect() as connection:
