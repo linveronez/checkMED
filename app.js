@@ -547,11 +547,7 @@ function renderHistory() {
     cells.push(`<button class="history-day ${key===selectedHistoryDate?'selected':''} ${hasRecord?'has-record':''}" data-history-date="${key}" ${future?'disabled':''} aria-label="${escapeHtml(fmtDate(key,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}${recordDates.has(key)?', com registros de medicamento':''}${entry?', com registro do dia':''}">${day}${hasRecord?`<span class="calendar-mark"><i></i>${face?`<em>${face}</em>`:''}</span>`:''}</button>`);
   }
   $('#historyCalendar').innerHTML = cells.join('');
-  $('[data-history-date]').forEach(day => {
-    const cls = doseAdherenceClass(day.dataset.historyDate);
-    if (cls) day.classList.add(cls);
-  });
-  $('[data-history-date]').forEach(day => {
+  $$('[data-history-date]').forEach(day => {
     const cls = doseAdherenceClass(day.dataset.historyDate);
     if (cls) day.classList.add(cls);
   });
