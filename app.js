@@ -44,6 +44,58 @@ const DEFAULT_STATE = {
   dataConsentAt: ''
 };
 const state = load();
+const AUTH_KEY = 'checkmed.auth';
+const SYNC_KEY = 'checkmed.sync';
+let applyingSync = false;
+
+function readAuth() {
+  try {
+    const value = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    return value && typeof value.token === 'string' && typeof value.accountId === 'string' ? value : null;
+  } catch { return null; }
+}
+
+function makeDeviceId() {
+  return crypto.randomUUID ? crypto.randomUUID() : uid();
+}
+
+function loadSyncMetadata() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SYNC_KEY) || 'null');
+    return {
+      deviceId: typeof saved?.deviceId === 'string' ? saved.deviceId : makeDeviceId(),
+      accountId: typeof saved?.accountId === 'string' ? saved.accountId : '',
+      lastSyncedVersion: Number.isInteger(saved?.lastSyncedVersion) && saved.lastSyncedVersion >= 0 ? saved.lastSyncedVersion : 0,
+      lastSyncedAt: typeof saved?.lastSyncedAt === 'string' ? saved.lastSyncedAt : '',
+      dirty: Boolean(saved?.dirty),
+      auto: Boolean(saved?.auto),
+    };
+  } catch {
+    return { deviceId: makeDeviceId(), accountId: '', lastSyncedVersion: 0, lastSyncedAt: '', dirty: false, auto: false };
+  }
+}
+
+let syncMetadata = loadSyncMetadata();
+
+function writeSyncMetadata() {
+  localStorage.setItem(SYNC_KEY, JSON.stringify(syncMetadata));
+}
+
+function markDirty() {
+  if (applyingSync || !readAuth() || !window.CHECKMED_CONFIG?.apiBase) return;
+  syncMetadata.dirty = true;
+  writeSyncMetadata();
+  if (syncMetadata.auto && typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+
+const accountApi = CheckMedApi.createClient({
+  apiBase: window.CHECKMED_CONFIG?.apiBase || '',
+  storage: localStorage,
+  onUnauthorized: message => {
+    if (typeof renderAccountCard === 'function') renderAccountCard();
+    showToast(message);
+  },
+});
 
 function load() {
   const raw = localStorage.getItem(KEY);
@@ -67,6 +119,7 @@ function load() {
 function save() {
   state.schemaVersion = 2;
   localStorage.setItem(KEY, JSON.stringify(state));
+  markDirty();
 }
 const PIN_SALT_KEY = 'checkmed.pin.salt',
   PIN_HASH_KEY = 'checkmed.pin.hash',
