@@ -210,6 +210,17 @@ test('api client clears auth on 401 and normalizes conflict versions', async () 
   await assert.rejects(conflict.request('/sync'), error => error.status === 409 && error.serverVersion === 7);
 });
 
+test('api client keeps an existing session on unauthenticated login errors', async () => {
+  const values = new Map([['checkmed.auth', JSON.stringify({ token: 'existing-session' })]]);
+  const storage = { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) };
+  const client = api.createClient({
+    apiBase: 'https://api.example.test', storage,
+    fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error: 'invalid_credentials', message: 'E-mail ou senha incorretos.' }) }),
+  });
+  await assert.rejects(client.request('/auth/login', { method: 'POST', auth: false, body: {} }), error => error.message === 'E-mail ou senha incorretos.');
+  assert.equal(JSON.parse(values.get('checkmed.auth')).token, 'existing-session');
+});
+
 test('api client reports timeout when fetch does not finish', async () => {
   const client = api.createClient({ apiBase: 'https://api.example.test', timeoutMs: 5, fetchImpl: () => new Promise(() => {}) });
   await assert.rejects(client.request('/auth/me'), error => error.error === 'timeout');

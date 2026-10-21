@@ -97,6 +97,115 @@ const accountApi = CheckMedApi.createClient({
   },
 });
 
+function renderAccountCard() {
+  const configured = Boolean(window.CHECKMED_CONFIG?.apiBase),
+    auth = readAuth(),
+    online = navigator.onLine !== false;
+  $('#onboardingLogin').hidden = !configured;
+  $('#accountUnavailable').hidden = configured;
+  $('#accountOffline').hidden = !configured || online;
+  $('#accountLoggedOut').hidden = !configured || Boolean(auth);
+  $('#accountConnected').hidden = !configured || !auth;
+  $('#accountStatus').textContent = !configured ? 'Conta disponível quando o servidor estiver configurado.' : auth ? 'Conectado com segurança.' : online ? 'Sem conta' : 'Seus dados continuam neste aparelho.';
+  $('#accountDisplayName').textContent = auth?.user?.displayName || auth?.user?.email || '';
+  $('#accountEmail').textContent = auth?.user?.email || '';
+  const lastSyncTimestamp = Date.parse(syncMetadata.lastSyncedAt);
+  $('#syncLastUpdated').textContent = Number.isFinite(lastSyncTimestamp) ? `Última sincronização: ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(lastSyncTimestamp))}` : 'Ainda não sincronizado.';
+  $('#syncAutoToggle').checked = syncMetadata.auto;
+  $('#syncNowButton').disabled = !online;
+  $('#openCreateAccount').disabled = !online;
+  $('#openLogin').disabled = !online;
+}
+
+function setAccountDialogView(view) {
+  const chooser = $('#accountModeChooser');
+  chooser.hidden = view !== 'chooser';
+  $('#registerForm').hidden = view !== 'register';
+  $('#loginForm').hidden = view !== 'login';
+  $('#accountDialogMessage').textContent = '';
+  $('#accountDialogMessage').classList.remove('account-error');
+  $('#accountDialogTitle').textContent = view === 'register' ? 'Criar conta' : view === 'login' ? 'Entrar na conta' : 'Conta e sincronização';
+  requestAnimationFrame(() => $(view === 'register' ? '#registerForm input[name="email"]' : view === 'login' ? '#loginForm input[name="email"]' : '#chooseCreateAccount')?.focus());
+}
+
+function openAccountDialog(view = 'chooser') {
+  if (!window.CHECKMED_CONFIG?.apiBase) {
+    showToast('A conta estará disponível quando o servidor estiver configurado.');
+    return;
+  }
+  if (navigator.onLine === false) {
+    showToast('Sem conexão. Seus dados continuam salvos neste aparelho.');
+    return;
+  }
+  setAccountDialogView(view);
+  openDialog('accountDialog');
+}
+
+function showAccountError(error, login = false) {
+  const message = error?.status === 429 ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
+    : login && error?.status === 401 ? 'E-mail ou senha incorretos.'
+      : error?.message || 'Não foi possível concluir agora. Tente novamente.';
+  $('#accountDialogMessage').textContent = message;
+  $('#accountDialogMessage').classList.add('account-error');
+}
+
+function storeAccountSession(response) {
+  const session = {
+    token: response.token,
+    expiresAt: null,
+    accountId: response.accountId,
+    user: { email: response.email, displayName: response.displayName || '' },
+  };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+  renderAccountCard();
+  return session;
+}
+
+let recoveryCodeAction = '';
+
+function showRecoveryCode(code, action) {
+  recoveryCodeAction = action;
+  $('#recoveryCodeValue').textContent = String(code || '');
+  $('#recoveryCodeSaved').checked = false;
+  $('#continueRecoveryCode').disabled = true;
+  $('#closeRecoveryCode').disabled = true;
+  $('#closeRecoveryCode').setAttribute('aria-label', 'Fechar e perder este código');
+  openDialog('recoveryCodeDialog');
+  requestAnimationFrame(() => $('#copyRecoveryCode').focus());
+}
+
+function completeRecoveryCodeStep() {
+  if (!$('#recoveryCodeSaved').checked) return;
+  const action = recoveryCodeAction;
+  recoveryCodeAction = '';
+  $('#recoveryCodeDialog').close();
+  $('#recoveryCodeValue').textContent = '';
+  if (action === 'register' && typeof onNewAccountCodeAccepted === 'function') onNewAccountCodeAccepted();
+  else if (action === 'reset') openAccountDialog('login');
+}
+
+function clearLocalHealthData() {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('checkmed.') && key !== SYNC_KEY) localStorage.removeItem(key);
+  }
+  Object.assign(state, JSON.parse(JSON.stringify(DEFAULT_STATE)));
+  sessionStorage.removeItem('checkmed.welcomeBack');
+  welcomeBackSummary = '';
+  save();
+  nav('today');
+  startAppGate();
+}
+
+async function finishLogout(removeLocalData = false) {
+  try { await accountApi.request('/auth/logout', { method: 'POST' }); }
+  catch { /* Saída local continua disponível sem rede. */ }
+  localStorage.removeItem(AUTH_KEY);
+  $('#logoutDialog').close();
+  if (removeLocalData) clearLocalHealthData();
+  renderAccountCard();
+  showToast(removeLocalData ? 'Você saiu e os dados deste aparelho foram removidos.' : 'Você saiu. Os dados continuam neste aparelho.');
+}
+
 function load() {
   const raw = localStorage.getItem(KEY);
   if (!raw) return {
@@ -272,7 +381,10 @@ function nav(to) {
   });
   if (to === 'profile') $('#profileName').value = state.name;
   render();
-  if (to === 'profile') renderNotificationSettings();
+  if (to === 'profile') {
+    renderNotificationSettings();
+    renderAccountCard();
+  }
 }
 
 function scheduleOf(m) {
@@ -1332,6 +1444,104 @@ $('#onboardingForm').addEventListener('submit', e => {
   render();
   showToast('Boas-vindas ao CheckMed.');
 });
+$('#openCreateAccount').addEventListener('click', () => openAccountDialog('register'));
+$('#openLogin').addEventListener('click', () => openAccountDialog('login'));
+$('#onboardingLogin').addEventListener('click', () => {
+  if (!window.CHECKMED_CONFIG?.apiBase || navigator.onLine === false) {
+    openAccountDialog('login');
+    return;
+  }
+  $('#onboardingDialog').close();
+  openAccountDialog('login');
+});
+$('#chooseCreateAccount').addEventListener('click', () => setAccountDialogView('register'));
+$('#chooseLogin').addEventListener('click', () => setAccountDialogView('login'));
+$$('[data-account-view]').forEach(button => button.addEventListener('click', () => setAccountDialogView(button.dataset.accountView)));
+$('#registerForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.currentTarget,
+    config = window.CHECKMED_CONFIG || {};
+  $('#accountDialogMessage').classList.remove('account-error');
+  $('#accountDialogMessage').textContent = 'Criando sua conta…';
+  try {
+    const result = await accountApi.request('/auth/register', {
+      method: 'POST', auth: false,
+      body: {
+        email: form.elements.email.value,
+        password: form.elements.password.value,
+        displayName: form.elements.displayName.value.trim(),
+        deviceLabel: navigator.userAgent.slice(0, 90),
+        consent: { type: 'cloud_sync', policyVersion: config.policyVersion || '2026-10-v1' },
+      },
+    });
+    storeAccountSession(result);
+    form.reset();
+    $('#accountDialog').close();
+    showRecoveryCode(result.recoveryCode, 'register');
+  } catch (error) {
+    showAccountError(error);
+  }
+});
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  $('#accountDialogMessage').classList.remove('account-error');
+  $('#accountDialogMessage').textContent = 'Entrando na sua conta…';
+  try {
+    const result = await accountApi.request('/auth/login', {
+      method: 'POST', auth: false,
+      body: { email: form.elements.email.value, password: form.elements.password.value, deviceLabel: navigator.userAgent.slice(0, 90) },
+    });
+    const session = storeAccountSession(result);
+    form.reset();
+    $('#accountDialog').close();
+    if (typeof handleAccountLogin === 'function') await handleAccountLogin(session);
+    else {
+      nav('today');
+      startAppGate();
+      showToast('Você entrou na sua conta.');
+    }
+  } catch (error) {
+    showAccountError(error, true);
+  }
+});
+$('#syncAutoToggle').addEventListener('change', e => {
+  syncMetadata.auto = e.currentTarget.checked;
+  writeSyncMetadata();
+  if (syncMetadata.auto && typeof scheduleAutoSync === 'function') scheduleAutoSync();
+  showToast(syncMetadata.auto ? 'Sincronização automática ativada.' : 'Sincronização automática desativada.');
+});
+$('#logoutButton').addEventListener('click', () => openDialog('logoutDialog'));
+$('#logoutKeepData').addEventListener('click', () => finishLogout(false));
+$('#logoutRemoveData').addEventListener('click', () => finishLogout(true));
+$('#recoveryCodeSaved').addEventListener('change', e => {
+  $('#continueRecoveryCode').disabled = !e.currentTarget.checked;
+  $('#closeRecoveryCode').disabled = !e.currentTarget.checked;
+  $('#closeRecoveryCode').setAttribute('aria-label', e.currentTarget.checked ? 'Fechar e continuar' : 'Fechar e perder este código');
+});
+$('#copyRecoveryCode').addEventListener('click', async () => {
+  const code = $('#recoveryCodeValue').textContent;
+  try {
+    await navigator.clipboard.writeText(code);
+    showToast('Código copiado. Guarde-o em um lugar seguro.');
+  } catch {
+    const temporary = document.createElement('textarea');
+    temporary.value = code;
+    temporary.setAttribute('readonly', '');
+    temporary.style.position = 'fixed';
+    temporary.style.opacity = '0';
+    document.body.append(temporary);
+    temporary.select();
+    const copied = document.execCommand('copy');
+    temporary.remove();
+    showToast(copied ? 'Código copiado. Guarde-o em um lugar seguro.' : 'Não foi possível copiar. Você pode baixar o arquivo .txt.');
+  }
+});
+$('#downloadRecoveryCode').addEventListener('click', () => downloadFile('checkmed-codigo-de-recuperacao.txt', `Código de recuperação CheckMed\n\n${$('#recoveryCodeValue').textContent}\n\nGuarde em local seguro. O CheckMed não mostra este código novamente.`, 'text/plain;charset=utf-8'));
+$('#continueRecoveryCode').addEventListener('click', completeRecoveryCodeStep);
+$('#closeRecoveryCode').addEventListener('click', completeRecoveryCodeStep);
+window.addEventListener('online', () => { renderAccountCard(); if (typeof scheduleAutoSync === 'function' && syncMetadata.auto) scheduleAutoSync(); });
+window.addEventListener('offline', renderAccountCard);
 $('#profileForm').addEventListener('submit', e => {
   e.preventDefault();
   state.name = $('#profileName').value.trim();
@@ -1424,7 +1634,7 @@ $('#unlockForm').addEventListener('submit', async e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') $$('dialog[open]').forEach(d => {
-    if (['lockDialog', 'onboardingDialog', 'forgotPinDialog', 'recoveryDialog'].includes(d.id)) {
+    if (['lockDialog', 'onboardingDialog', 'forgotPinDialog', 'recoveryDialog'].includes(d.id) || (d.id === 'recoveryCodeDialog' && !$('#recoveryCodeSaved').checked)) {
       e.preventDefault();
       return;
     }
@@ -1433,6 +1643,7 @@ document.addEventListener('keydown', e => {
 });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});
 render();
+renderAccountCard();
 initStoragePersistence();
 if (corruptStateFound) showToast(`Os dados anteriores foram preservados em ${corruptBackupKey}. O app iniciou vazio para evitar sobrescrever o arquivo corrompido.`);
 startAppGate();

@@ -46,7 +46,7 @@
           try { data = await response.json(); }
           catch { data = null; }
         }
-        if (response.status === 401) {
+        if (response.status === 401 && auth) {
           storage?.removeItem(AUTH_KEY);
           onUnauthorized(SESSION_MESSAGE);
         }
@@ -54,7 +54,7 @@
           throw {
             status: response.status,
             error: data?.error || 'request_failed',
-            message: response.status === 401 ? SESSION_MESSAGE : data?.message || 'Não foi possível concluir agora. Tente novamente.',
+            message: response.status === 401 && auth ? SESSION_MESSAGE : data?.message || 'Não foi possível concluir agora. Tente novamente.',
             ...(Number.isInteger(data?.serverVersion) ? { serverVersion: data.serverVersion } : {}),
           };
         }
