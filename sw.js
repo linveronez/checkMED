@@ -1,4 +1,4 @@
-const CACHE = 'checkmed-shell-v05';
+const CACHE = 'checkmed-shell-v06';
 const ASSETS = ['./', './index.html', './styles.css', './core.js', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => event.waitUntil(
