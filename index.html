@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="CheckMed — um jeito simples e gentil de acompanhar sua rotina de cuidado.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>CheckMed — cuidado em rotina</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 36 36" focusable="false"><defs><clipPath id="brandPillClip"><rect x="3.5" y="5" width="29" height="14" rx="7"/></clipPath></defs><rect x="3.5" y="5" width="29" height="14" rx="7" fill="#f4f8ff"/><path d="M18 5h7.5a7 7 0 0 1 0 14H18z" fill="#4d8eff" clip-path="url(#brandPillClip)"/><path d="M18 5v14" stroke="#101827" stroke-width="1.6"/><circle cx="25" cy="25" r="8" fill="#f4f8ff"/><path d="m20.5 25 3.1 3.1 6-6.8" fill="none" stroke="#2676f2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>check<span class="brand-accent">med</span></span></div>
+      <button class="icon-button" id="profileButton" aria-label="Abrir perfil">☻</button>
+    </header>
+
+    <main id="mainContent">
+      <section class="screen active" id="screen-today" data-screen="today">
+        <div class="greeting"><p class="eyebrow" id="todayDate"></p><p class="welcome-name" id="welcomeName" hidden></p><h1>Seu cuidado,<br><em>um passo de cada vez.</em></h1><p class="subtle">Um lembrete gentil para hoje.</p><button class="text-button daylog-link" type="button" id="openDaylog">Registrar meu dia →</button></div>
+        <div class="summary-card">
+          <div><span class="summary-kicker">ROTINA DE HOJE</span><strong id="todayProgress">Tudo no seu tempo</strong><span class="subtle" id="todaySummary">Cadastre uma medicação para começar.</span></div>
+          <div class="ring" id="progressRing"><span id="progressNumber">0/0</span></div>
+        </div>
+        <div id="nextDose" class="next-dose-card" hidden></div>
+        <p class="reminder-limit" role="note">Lembretes só funcionam com o app aberto. Use também o alarme do celular.</p>
+        <div class="stock-alerts stack" id="stockAlerts"></div>
+        <div class="section-heading"><div><span class="eyebrow">ACOMPANHAMENTO</span><h2>Doses de hoje</h2></div><button class="text-button" data-go="meds">Ver todas →</button></div>
+        <div id="todayDoses" class="stack"></div>
+        <div class="section-heading compact"><div><span class="eyebrow">EM BREVE</span><h2>Próximos compromissos</h2></div><button class="text-button" data-go="calendar">Agenda →</button></div>
+        <div id="upcomingHome" class="stack"></div>
+      </section>
+
+      <section class="screen" id="screen-meds" data-screen="meds">
+        <div class="page-heading"><span class="eyebrow">SUA ROTINA</span><h1>Medicamentos</h1><p class="subtle">Organize horários e acompanhe seu estoque.</p></div>
+        <button class="primary-button wide" id="addMedButton"><span>＋</span> Adicionar medicamento</button>
+        <div id="medList" class="stack page-stack"></div>
+      </section>
+
+      <section class="screen" id="screen-calendar" data-screen="calendar">
+        <div class="page-heading"><span class="eyebrow">SEUS CUIDADOS</span><h1>Agenda</h1><p class="subtle">Consultas, retornos e receitas em um só lugar.</p></div>
+        <button class="primary-button wide" id="addEventButton"><span>＋</span> Adicionar compromisso</button>
+        <div class="history-calendar-card agenda-calendar-card">
+          <div class="month-controls"><button class="month-arrow" id="agendaPrevMonth" aria-label="Mês anterior">‹</button><strong id="agendaMonthLabel"></strong><button class="month-arrow" id="agendaNextMonth" aria-label="Próximo mês">›</button></div>
+          <div class="history-calendar" id="agendaCalendar" aria-label="Calendário de compromissos"></div>
+          <div class="calendar-key"><i></i> Compromisso ou rotina completa <i class="partial-dot"></i> Rotina com doses pendentes</div>
+        </div>
+        <div class="section-heading"><div><span class="eyebrow">DIA SELECIONADO</span><h2 id="agendaSelectedLabel"></h2></div></div>
+        <div id="eventList" class="stack page-stack"></div>
+        <div class="section-heading compact"><div><span class="eyebrow">PLANEJAMENTO</span><h2>Próximos 30 dias</h2></div></div><div id="upcomingEvents" class="stack"></div>
+      </section>
+
+      <section class="screen" id="screen-history" data-screen="history">
+        <div class="page-heading"><span class="eyebrow">SEU CAMINHO</span><h1>Histórico</h1><p class="subtle">Seus registros recentes, sem julgamentos.</p></div>
+        <div class="history-calendar-card">
+          <div class="month-controls"><button class="month-arrow" id="historyPrevMonth" aria-label="Mês anterior">‹</button><strong id="historyMonthLabel"></strong><button class="month-arrow" id="historyNextMonth" aria-label="Próximo mês">›</button></div>
+          <div class="history-calendar" id="historyCalendar" aria-label="Calendário de registros"></div>
+          <div class="calendar-key"><i></i> Dia com registros</div>
+        </div>
+        <div class="history-summary" id="historySummary"></div>
+        <button type="button" class="secondary-button wide" id="openPastDose">Registrar uma dose que esqueci</button>
+        <div id="historyList" class="stack page-stack"></div>
+      </section>
+
+      <section class="screen" id="screen-daylog" data-screen="daylog">
+        <div class="page-heading"><span class="eyebrow">SEU ESPAÇO</span><h1>Meu dia</h1><p class="subtle">Um registro opcional, no seu ritmo.</p></div>
+        <div class="entry-date-card"><button id="entryPrevDay" class="month-arrow" type="button" aria-label="Dia anterior">‹</button><div><span class="eyebrow">REGISTRANDO</span><strong id="checkinDateLabel"></strong></div><button id="entryNextDay" class="month-arrow" type="button" aria-label="Próximo dia">›</button></div>
+        <div class="daily-checkin" id="dailyCheckin">
+          <div class="checkin-heading"><div><span class="eyebrow">COMO FOI SEU DIA?</span><h2>Como você está?</h2></div></div>
+          <div class="mood-row" role="group" aria-label="Selecione como está se sentindo">
+            <button type="button" class="mood-choice" data-mood="muito-bem" aria-label="Muito bem">😊</button><button type="button" class="mood-choice" data-mood="bem" aria-label="Bem">🙂</button><button type="button" class="mood-choice" data-mood="neutro" aria-label="Neutro">😐</button><button type="button" class="mood-choice" data-mood="mal" aria-label="Mal">🙁</button><button type="button" class="mood-choice" data-mood="muito-mal" aria-label="Muito mal">😣</button>
+          </div>
+          <label class="checkin-note-label">Anotação para você ou para a próxima consulta<textarea id="dailyNote" maxlength="500" placeholder="Se quiser, anote como se sentiu ou algo para conversar com sua equipe de cuidado."></textarea></label>
+          <label class="checkin-note-label">Perguntas para a próxima consulta<textarea id="dailyQuestions" maxlength="500" placeholder="O que você quer lembrar de perguntar?"></textarea></label>
+          <button type="button" class="secondary-button wide" id="exportConsultation">Exportar resumo para consulta</button>
+          <button type="button" class="secondary-button wide" id="saveCheckin">Salvar registro do dia</button>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-profile" data-screen="profile">
+        <div class="page-heading"><span class="eyebrow">PREFERÊNCIAS</span><h1>Seu perfil</h1><p class="subtle">Ajuste o app ao seu jeito.</p></div>
+        <form id="profileForm" class="form-card">
+          <label>Como podemos chamar você?<input id="profileName" maxlength="40" placeholder="Seu nome ou apelido"></label>
+          <button class="primary-button wide" type="submit">Salvar perfil</button>
+        </form>
+        <div class="form-card notification-settings">
+          <div><strong>Lembretes de medicamentos</strong><p class="subtle" id="notificationStatus">Receba um aviso nos horários cadastrados para sua rotina diária.</p></div>
+          <button class="secondary-button wide" type="button" id="notificationsButton">Ativar lembretes</button>
+          <label class="privacy-toggle"><input id="hideNotificationName" type="checkbox" checked> Ocultar nome do medicamento na tela bloqueada</label>
+          <small class="fine-print">O CheckMed precisa estar aberto para conferir os horários. A permissão de notificação será solicitada somente quando você tocar no botão.</small>
+        </div>
+        <div class="form-card preparation-card">
+          <div><strong>Instalar CheckMed</strong><p class="subtle">Acesse pela tela inicial do celular ou pelo menu de instalação do navegador.</p></div>
+          <button class="secondary-button wide" type="button" id="installAppButton">Instalar aplicativo</button>
+        </div>
+        <div class="form-card preparation-card"><div><strong>Trava de privacidade local</strong><p class="subtle">PIN opcional com hash no aparelho. Não substitui uma conta nem protege contra acesso técnico ao navegador.</p></div><button type="button" class="secondary-button wide" id="pinSetupButton">Criar PIN</button><button type="button" class="secondary-button wide" id="pinRemoveButton" hidden>Desativar PIN</button><button type="button" class="small-action" id="lockNowButton">Bloquear CheckMed agora</button></div>
+        <div class="info-card preparation-card"><span class="info-icon">👆</span><div><strong>Biometria</strong><p>Passkeys/WebAuthn ficam como evolução com servidor para validar os desafios de autenticação com segurança.</p></div></div>
+        <div class="info-card preparation-card"><span class="info-icon">🔔</span><div><strong>Push e alarmes</strong><p>O app já está sendo preparado para receber avisos pelo service worker. A entrega em segundo plano depende da assinatura do aparelho e do serviço push do servidor.</p></div></div>
+        <div class="info-card"><span class="info-icon">🔒</span><div><strong>Seus dados ficam neste aparelho</strong><p>Este protótipo salva suas informações neste navegador. Ainda não há conta nem sincronização.</p></div></div>
+        <button class="secondary-button wide" id="exportButton">Exportar meus dados</button>
+        <button class="secondary-button wide" id="importButton" type="button">Importar backup</button><input id="importFile" type="file" accept="application/json,.json" hidden>
+        <p class="fine-print" id="backupStatus"></p>
+        <p class="fine-print">CheckMed ajuda a organizar sua rotina. Siga sempre as orientações da sua equipe de saúde.</p>
+      </section>
+    </main>
+
+    <button class="sos-button" id="sosButton" aria-label="Abrir ajuda rápida"><span>🚨</span><small>SOS</small></button>
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button class="nav-item active" data-go="today"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span><span>Hoje</span></button>
+      <button class="nav-item" data-go="meds"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg></span><span>Remédios</span></button>
+      <button class="nav-item" data-go="calendar"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg></span><span>Agenda</span></button>
+      <button class="nav-item" data-go="history"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></span><span>Histórico</span></button>
+      <button class="nav-item" data-go="profile"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span>Perfil</span></button>
+    </nav>
+  </div>
+
+  <dialog id="medDialog" class="app-dialog"><form id="medForm" method="dialog">
+    <div class="dialog-head"><div><span class="eyebrow">NOVA ROTINA</span><h2>Medicamento</h2></div><button type="button" class="close-button" data-close="medDialog" aria-label="Fechar">×</button></div>
+    <label>Nome do medicamento<input name="name" required maxlength="60" placeholder="Ex.: Medicamento"></label>
+    <label>Como você usa este medicamento?<select name="mode" id="medMode"><option value="daily">Rotina diária</option><option value="asneeded">Uso eventual (registrar quando tomar)</option></select></label>
+    <div class="form-row"><label>Dosagem<input name="strength" maxlength="30" placeholder="Ex.: 100 mg"></label><label id="amountLabel">Comprimidos por dose<input name="perDose" type="number" min="0.25" step="0.25" value="1" required></label></div>
+    <div id="timesField" class="schedule-field"><span class="field-label">Horários e comprimidos por dose</span><div class="schedule-input-row"><label>Horário<input id="scheduleTimeInput" type="time"></label><label>Comprimidos<input id="scheduleAmountInput" type="number" min="0.25" step="0.25" value="1"></label><button type="button" class="secondary-button" id="addScheduleTime">＋ Horário</button></div><div id="scheduleChips" class="schedule-chips"></div><input type="hidden" name="times"></div>
+    <label>Comprimidos em estoque<input name="stock" type="number" min="0" step="0.25" value="30" required></label>
+    <label>Validade da receita (opcional)<input name="prescriptionExpiry" type="date"></label>
+    <button class="primary-button wide" type="submit">Salvar medicamento</button>
+  </form></dialog>
+
+  <dialog id="stockDialog" class="app-dialog"><form id="stockForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">ESTOQUE REAL</span><h2>Quantos comprimidos você tem?</h2></div><button type="button" class="close-button" data-close="stockDialog" aria-label="Fechar">×</button></div><label>Quantidade contada<input name="stock" type="text" inputmode="decimal" required placeholder="Ex.: 12,5"></label><button class="primary-button wide" type="submit">Salvar quantidade</button></form></dialog>
+
+  <dialog id="pastDoseDialog" class="app-dialog"><form id="pastDoseForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">REGISTRO RETROSPECTIVO</span><h2>Dose tomada em outro dia</h2></div><button type="button" class="close-button" data-close="pastDoseDialog" aria-label="Fechar">×</button></div><label>Data<input name="date" type="date" required></label><label>Medicamento<select name="medId" required id="pastDoseMed"></select></label><label>Horário da rotina<select name="time" required id="pastDoseTime"></select></label><label>Você tomou por volta de… (opcional)<input name="takenAtTime" type="time"></label><label class="consent-line"><input name="deductStock" type="checkbox" checked> Descontar esta dose do estoque</label><p class="fine-print">Se você já conferiu e atualizou o estoque depois da tomada, desmarque a opção para evitar descontar duas vezes.</p><button class="primary-button wide" type="submit">Salvar registro</button></form></dialog>
+
+  <dialog id="onboardingDialog" class="app-dialog"><form id="onboardingForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">BOAS-VINDAS AO CHECKMED</span><h2>Seu cuidado, no seu ritmo</h2></div></div><label>Como podemos chamar você?<input name="name" maxlength="40" placeholder="Seu nome ou apelido"></label><div class="info-card"><span class="info-icon">🔒</span><div><strong>Dados neste aparelho</strong><p>Este protótipo guarda registros neste navegador. Ainda não há conta nem sincronização.</p></div></div><label class="consent-line"><input type="checkbox" name="consent" required> Entendi que meus dados de saúde ficam localmente neste aparelho e aceito usar este protótipo para organizar meus registros.</label><p class="fine-print">CheckMed é um organizador. Não substitui prescrição, orientação profissional nem atendimento de emergência.</p><button class="primary-button wide" type="submit">Começar</button></form></dialog>
+
+  <dialog id="pinDialog" class="app-dialog"><form id="pinForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">PRIVACIDADE LOCAL</span><h2 id="pinDialogTitle">Criar PIN</h2></div><button type="button" class="close-button" data-close="pinDialog" aria-label="Fechar">×</button></div><label id="currentPinField" hidden>PIN atual<input name="currentPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password"></label><label>Novo PIN de 4 a 8 dígitos<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="new-password" required></label><button class="primary-button wide" type="submit">Salvar PIN</button><p class="fine-print">Este PIN é uma trava de privacidade local. Não é segurança forte: quem tiver acesso técnico ao navegador pode contorná-la. Exporte um backup e guarde o PIN.</p></form></dialog>
+  <dialog id="lockDialog" class="app-dialog"><form id="unlockForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">CHECKMED BLOQUEADO</span><h2>Digite seu PIN</h2></div></div><label>PIN<input name="pin" id="unlockPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><button class="primary-button wide" id="unlockButton" type="submit">Desbloquear</button><p class="fine-print" id="pinLockStatus" role="status"></p><button class="text-button" type="button" id="forgotPinButton">Esqueci o PIN</button></form></dialog>
+
+  <dialog id="forgotPinDialog" class="app-dialog"><div class="dialog-head"><div><span class="eyebrow">RECUPERAÇÃO DE ACESSO</span><h2>Apagar os dados locais?</h2></div><button type="button" class="close-button" id="cancelForgotPin" aria-label="Voltar">×</button></div><p class="subtle">Sem o PIN não é possível abrir estes dados. Você pode apagar os dados e a trava deste aparelho e, em seguida, importar um backup. Sem backup, os registros atuais serão perdidos.</p><button type="button" class="primary-button wide" id="eraseForRecovery">Apagar dados e continuar</button><button type="button" class="secondary-button wide" id="cancelForgotPinButton">Voltar ao PIN</button></dialog>
+
+  <dialog id="recoveryDialog" class="app-dialog"><div class="dialog-head"><div><span class="eyebrow">DADOS LOCAIS LIMPOS</span><h2>Recuperar seus registros</h2></div></div><p class="subtle">Se você tem um backup, importe-o agora. Caso contrário, pode começar um novo perfil.</p><button type="button" class="primary-button wide" id="recoveryImportButton">Importar backup</button><input id="recoveryImportFile" type="file" accept="application/json,.json" hidden><button type="button" class="secondary-button wide" id="startWithoutBackup">Começar sem backup</button></dialog>
+
+  <dialog id="pinRemoveDialog" class="app-dialog"><form id="pinRemoveForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">PRIVACIDADE LOCAL</span><h2>Desativar PIN</h2></div><button type="button" class="close-button" data-close="pinRemoveDialog" aria-label="Fechar">×</button></div><label>Digite seu PIN atual<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password" required></label><p class="fine-print" id="pinRemoveStatus" role="status"></p><button class="primary-button wide" type="submit">Desativar trava</button></form></dialog>
+
+  <dialog id="eventDialog" class="app-dialog"><form id="eventForm" method="dialog">
+    <div class="dialog-head"><div><span class="eyebrow">AGENDA DE CUIDADO</span><h2>Compromisso</h2></div><button type="button" class="close-button" data-close="eventDialog" aria-label="Fechar">×</button></div>
+    <label>Tipo<select name="type"><option>Consulta médica</option><option>Consulta psicológica</option><option>Retorno</option><option>Renovar receita</option><option>Outro</option></select></label>
+    <label>Profissional ou título<input name="title" required maxlength="80" placeholder="Ex.: Dra. Ana — retorno"></label>
+    <div class="form-row"><label>Data<input name="date" type="date" required></label><label>Horário<input name="time" type="time"></label></div>
+    <label>Local ou anotação<input name="note" maxlength="120" placeholder="Opcional"></label>
+    <button class="primary-button wide" type="submit">Salvar compromisso</button>
+  </form></dialog>
+
+  <dialog id="sosDialog" class="app-dialog sos-dialog"><div class="dialog-head"><div><span class="eyebrow">APOIO RÁPIDO</span><h2>Ajuda por perto</h2></div><button type="button" class="close-button" data-close="sosDialog" aria-label="Fechar">×</button></div>
+    <p class="subtle">Em uma urgência médica, ligue para o SAMU. Para localizar serviços próximos, informe uma cidade ou bairro; a busca abre no Google Maps quando você tocar em um botão.</p>
+    <a class="sos-action emergency-call" href="tel:192"><span class="sos-action-icon">☎</span><span><strong>Ligar para o SAMU — 192</strong><small>Urgência e emergência</small></span><b>→</b></a>
+    <a class="sos-action cvv-call" href="tel:188"><span class="sos-action-icon">♡</span><span><strong>Ligar para o CVV — 188</strong><small>Apoio emocional · gratuito, 24 horas</small></span><b>→</b></a>
+    <div class="location-search"><label for="sosLocation">Cidade ou bairro para pesquisar</label><input id="sosLocation" maxlength="100" placeholder="Ex.: Centro, Campinas"></div>
+    <div class="service-grid">
+      <article class="service-card"><span class="service-symbol">⌖</span><strong>Farmácia</strong><small>Encontre uma farmácia ou salve um telefone.</small><button class="secondary-button" data-map-search="farmácia">Buscar farmácia</button><div id="pharmacySaved" class="saved-phone"></div></article>
+      <article class="service-card"><span class="service-symbol">✚</span><strong>UPA / UBS</strong><small>Pesquise unidades de pronto atendimento e unidades básicas.</small><button class="secondary-button" data-map-search="UPA UBS unidade de saúde">Buscar UPA / UBS</button></article>
+      <article class="service-card"><span class="service-symbol">♡</span><strong>CAPS</strong><small>Pesquise centros de atenção psicossocial.</small><button class="secondary-button" data-map-search="CAPS Centro de Atenção Psicossocial">Buscar CAPS</button><a class="official-link" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps/caps" target="_blank" rel="noopener noreferrer">Orientação oficial para localizar CAPS ↗</a></article>
+    </div>
+    <form id="pharmacyForm" class="contact-form"><label>Minha farmácia de confiança (opcional)<input name="pharmacyName" maxlength="80" placeholder="Nome da farmácia"></label><label>Telefone<input name="pharmacyPhone" type="tel" maxlength="30" placeholder="(00) 00000-0000"></label><button class="secondary-button wide" type="submit">Salvar telefone neste aparelho</button></form>
+    <div id="sosContent"></div>
+    <form id="contactForm" class="contact-form"><label>Contato de confiança<input name="contact" maxlength="80" placeholder="Nome ou telefone"></label><button class="secondary-button wide" type="submit">Salvar contato neste aparelho</button></form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastMessage"></span><button type="button" id="toastAction" hidden></button></div>
+  <script src="core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "CheckMed — cuidado em rotina",
+  "short_name": "CheckMed",
+  "id": "./",
+  "scope": "./",
+  "description": "Um jeito simples e gentil de acompanhar sua rotina de cuidado.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#101827",
+  "lang": "pt-BR",
+  "icons": [
+    {"src":"./icon-180.png","sizes":"180x180","type":"image/png","purpose":"any"},
+    {"src":"./icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
