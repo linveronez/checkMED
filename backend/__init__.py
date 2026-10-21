@@ -84,8 +84,10 @@ def create_app(test_config=None):
         )
 
     from .auth import auth_bp
+    from .account import account_bp
     from .sync import sync_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api")
+    app.register_blueprint(account_bp, url_prefix="/api")
     app.register_blueprint(sync_bp, url_prefix="/api")
     return app
