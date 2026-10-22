@@ -1,6 +1,6 @@
 (function (root) {
   const config = {
-    apiBase: '',
+    apiBase: 'https://checkmed-tau.vercel.app',
     policyVersion: '2026-10-v1',
     sessionDays: 30,
   };
