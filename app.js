@@ -367,7 +367,9 @@ const PIN_SALT_KEY = 'checkmed.pin.salt',
   PIN_HASH_KEY = 'checkmed.pin.hash',
   PIN_FAILURE_KEY = 'checkmed.pin.failures',
   PIN_LOCK_UNTIL_KEY = 'checkmed.pin.lockUntil';
+const PIN_AUTO_LOCK_DELAY = 5 * 60 * 1000;
 let lockWhenReturning = false;
+let pinAutoLockTimer = 0;
 
 function bytesToBase64(bytes) {
   return btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -767,25 +769,32 @@ function lockAppOnReturn() {
   });
   if (!$('#lockDialog').open) openLockDialog();
 }
-window.addEventListener('blur', () => {
-  if (state.onboardingComplete && localStorage.getItem(PIN_HASH_KEY)) lockWhenReturning = true;
-});
-window.addEventListener('focus', () => {
-  if (lockWhenReturning) {
-    lockWhenReturning = false;
-    lockAppOnReturn();
-  }
-});
+function startPinAutoLockCountdown() {
+  if (!state.onboardingComplete || !localStorage.getItem(PIN_HASH_KEY) || $('#lockDialog').open) return;
+  clearTimeout(pinAutoLockTimer);
+  pinAutoLockTimer = setTimeout(() => {
+    lockWhenReturning = true;
+    pinAutoLockTimer = 0;
+  }, PIN_AUTO_LOCK_DELAY);
+}
+
+function checkPinAutoLockOnReturn() {
+  clearTimeout(pinAutoLockTimer);
+  pinAutoLockTimer = 0;
+  if (!lockWhenReturning) return;
+  lockWhenReturning = false;
+  lockAppOnReturn();
+}
+
+window.addEventListener('blur', startPinAutoLockCountdown);
+window.addEventListener('focus', checkPinAutoLockOnReturn);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (state.onboardingComplete && localStorage.getItem(PIN_HASH_KEY)) lockWhenReturning = true;
+    startPinAutoLockCountdown();
     return;
   }
   checkDoseReminders();
-  if (lockWhenReturning) {
-    lockWhenReturning = false;
-    lockAppOnReturn();
-  }
+  checkPinAutoLockOnReturn();
 });
 
 function eventMarkup(e) {
