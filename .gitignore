@@ -9,3 +9,12 @@ instance/
 *.db
 .vercel/
 *.zip
+
+# Arquivos de entrega acadêmica mantidos apenas localmente
+/docs/ARTIGO_CIENTIFICO_UNISA.md
+/docs/CheckMed_Artigo_Cientifico_UNISA.docx
+/docs/DOCUMENTACAO_TECNICA.md
+/docs/MANUAL_DO_USUARIO.md
+/docs/MANUAL_TECNICO.md
+/docs/ROTEIRO_VIDEO_YOUTUBE.md
+/docs/gerar_artigo_docx.py
