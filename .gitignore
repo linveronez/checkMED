@@ -10,11 +10,10 @@ instance/
 .vercel/
 *.zip
 
-# Arquivos de entrega acadêmica mantidos apenas localmente
+# Entregas acadêmicas mantidas localmente
 /docs/ARTIGO_CIENTIFICO_UNISA.md
 /docs/CheckMed_Artigo_Cientifico_UNISA.docx
-/docs/DOCUMENTACAO_TECNICA.md
-/docs/MANUAL_DO_USUARIO.md
-/docs/MANUAL_TECNICO.md
 /docs/ROTEIRO_VIDEO_YOUTUBE.md
 /docs/gerar_artigo_docx.py
+/docs/CheckMed_Artigo_PI_5950929_REVISAO.docx
+/docs/source_article_render/

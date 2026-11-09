@@ -1,59 +1,86 @@
-# CheckMed v0.1
+# CheckMed — Cuidado em Rotina
 
-Protótipo mobile-first para organizar medicamentos, registros pessoais e compromissos de saúde. O app armazena os dados no navegador deste aparelho; não há conta ou sincronização. Use um backup para preservar seus dados.
+[![PWA](https://img.shields.io/badge/PWA-Offline--first-blue.svg)](manifest.json)
 
-## Direção visual
+Aplicativo web progressivo (PWA) e *mobile-first* para organização de medicamentos, adesão a tratamentos de saúde, controle de estoque e acompanhamento de consultas.
 
-O app Só por Hoje inspira a interface escura e acolhedora, os cartões arredondados, o azul/ciano como acento, a navegação fixa inferior e o acesso SOS. CheckMed mantém linguagem gentil e sem culpa, com um comprimido e um check azul na marca.
+O CheckMed foi concebido com foco em usabilidade humanizada, linguagem gentil e armazenamento local por padrão. O cache do PWA permite reabrir arquivos já carregados sem conexão; funções de conta e sincronização dependem da internet. Os textos de privacidade e termos estão em versão básica; uma revisão para ampliar as informações é cabível antes de uma divulgação mais ampla.
 
-## Funcionalidades
+---
 
-- **Hoje:** doses agrupadas por horário, quantidade variável por dose, registro com hora real, ação “Tomei tudo”, opção de pular, desfazer e aviso de dose pendente.
-- **Medicamentos:** rotinas diárias e medicamentos de uso eventual, edição, exclusão confirmada, estoque contado manualmente, previsão simples de reposição e validade da receita.
-- **Histórico:** calendário mensal com registros reais, cores de adesão calculadas como tomadas sobre esperadas, registro de dose em data anterior e anotação diária somente leitura no Histórico. O registro fictício de demonstração foi removido.
-- **Meu dia:** humor, anotação e perguntas para a próxima consulta; resumo textual exportável para levar à consulta. O cartão na tela Hoje abre esse registro.
-- **Agenda:** compromissos, lista dos próximos 30 dias, sugestão de renovação de receita e exportação de evento `.ics`.
-- **SOS:** ligação para SAMU 192 e CVV 188, buscas por farmácia/UPA/UBS/CAPS e contatos salvos neste aparelho. Os serviços de localização são pesquisas externas; confirme o resultado antes de se deslocar.
-- **Perfil:** lembretes locais e segundo aviso após 30 minutos enquanto o app está aberto, opção de ocultar nomes nas notificações, instalação PWA, PIN local com limite progressivo de tentativas e bloqueio ao voltar ao app, exportação/importação com cópia automática antes de substituir dados. Conta e sincronização são opcionais.
-- **Conta:** cadastro, login, troca e recuperação de senha por código, sincronização versionada com escolha explícita em conflitos, apagar snapshot ou excluir conta. Os dados continuam locais sem conta. Requer API e PostgreSQL configurados; veja [contrato](docs/api.md) e [publicação](docs/deploy.md).
-- **Privacidade:** os [termos de uso](termos.html) e o [aviso de privacidade](privacidade.html) são rascunhos e precisam ser revisados e preenchidos antes de publicação.
-- **PWA:** manifesto, ícones PNG, shell offline com busca à rede antes do cache e suporte a notificações recebidas por push quando houver servidor configurado.
+## 📱 Funcionalidades Principais
 
-## Dados e limites
+- **Hoje (Rotina Diária):** Doses agrupadas cronologicamente por horários, suporte a doses fracionadas (ex.: 0,25 ou 0,5 comprimido), ação rápida "Tomei tudo", registro com horário real, opção instantânea de desfazer e alertas visuais de doses pendentes.
+- **Medicamentos:** Cadastro de rotinas diárias e de uso eventual (*SOS/se necessário*), edição de posologia, confirmação de exclusão, controle de estoque contado manualmente, projeção matemática do término dos comprimidos e controle de validade de receitas médicas.
+- **Bula na Anvisa:** Cada cartão de medicamento possui o botão **"Bula na Anvisa ↗"**, que abre o Bulário Eletrônico oficial da Anvisa com o nome cadastrado no parâmetro da consulta; a apresentação dos resultados depende do serviço da Anvisa. A consulta acontece exclusivamente no site oficial da Anvisa; o CheckMed não baixa, não armazena e não substitui a bula do fabricante nem a orientação de um profissional de saúde.
+- **Agenda:** Gestão de consultas médicas, retornos psicológicos e renovação de receitas. Apresenta calendário interativo, visão antecipada dos próximos 30 dias e exportação de eventos no formato padrão `.ics` (iCalendar) para integração com Google Agenda e Apple Calendar.
+- **Histórico:** Calendário mensal com registros reais de tomadas e cores intuitivas de adesão terapêutica (proporção de doses tomadas sobre programadas). Permite o registro retrospectivo de doses em datas anteriores (com escolha de abater ou não do estoque).
+- **Meu Dia (Diário de Saúde):** Registro do estado de humor através de emojis, sintomas, efeitos colaterais e dúvidas para a consulta médica. Gera um resumo formatado exportável com um clique para compartilhamento via WhatsApp ou impressão.
+- **Central SOS:** Acesso emergencial com 1 toque para discagem imediata ao **SAMU (192)** e ao **CVV (188)**, busca de Farmácias, UPAs/UBSs e CAPS no Google Maps usando o bairro ou a cidade informados, além de discagem para contatos e farmácias de confiança salvas no aparelho.
+- **Privacidade e Trava por PIN:** Trava de privacidade local com PIN de 4 a 8 dígitos, derivado com PBKDF2-HMAC-SHA-256 (210.000 iterações e salt aleatório). O PIN não é enviado à nuvem nem criptografa os dados armazenados no navegador.
+- **Backup e Restauração:** Exportação e importação manual de cópias de segurança em formato `.json` estruturado, com higienização estrita de dados contra injeção de esquemas.
+- **Conta e Sincronização em Nuvem (Opcional):** Sincronização assíncrona baseada em *snapshots* versionados. Se ocorrerem edições concorrentes em múltiplos aparelhos, a API detecta conflitos (`HTTP 409 Conflict`) e apresenta um modal para decisão consciente do usuário, sem sobrescritas silenciosas.
 
-O navegador pode apagar dados locais. Exporte backups com frequência e guarde-os em local protegido. Na importação, o CheckMed valida as listas e mantém apenas campos reconhecidos. Se o JSON local estiver corrompido, o texto bruto é preservado em outra chave local antes de abrir um estado vazio.
+---
 
-O PIN usa PBKDF2 para verificar o código e funciona como trava de privacidade local; ele não criptografa os dados e não impede acesso técnico ao navegador. Se o PIN for esquecido, o fluxo de recuperação apaga os dados locais e permite importar um backup ou começar um perfil novo. Guarde o backup. A biometria e o push remoto continuam como trabalho futuro.
+## 🛠️ Arquitetura e Tecnologias
 
-Lembretes locais verificam horários apenas com o app aberto e podem chegar atrasados se o navegador suspender a página. Mantenha também o alarme do celular. Push em segundo plano exige HTTPS, VAPID, serviço de envio e armazenamento no servidor.
+- **Front-end:** HTML5 semântico, CSS3 responsivo (design system com tema escuro e áreas de toque acessíveis), JavaScript puro (ES6+ modular).
+- **PWA:** Service Worker (`sw.js`) com estratégia *Network-first com fallback para Cache Storage*, manifesto de aplicação e ícones de alta resolução para instalação na tela inicial.
+- **Back-end:** Python 3.12+ com microframework Flask, publicada na Vercel para conta e sincronização; localmente pode ser executada com o servidor de desenvolvimento do Flask.
+- **Banco de Dados:** PostgreSQL hospedado no Neon, com conexão TLS e migrações versionadas.
+- **Criptografia e Segurança:** *scrypt* para hashing de senhas, SHA-256 para tokens de sessão, códigos de recuperação Base32 (100 bits) e Content Security Policy (CSP) restritiva.
 
-A previsão de estoque assume o consumo programado todos os dias. Ela não altera nem recomenda doses. O CheckMed ajuda a organizar registros; siga a orientação da sua equipe de saúde e ligue para o serviço de emergência em uma urgência.
+---
 
-## Rodar localmente
+## 🚀 Como Executar Localmente
 
-Para testar o PWA e as notificações em ambiente seguro, sirva esta pasta por HTTP local. Abrir `index.html` diretamente permite o protótipo, mas service worker, instalação e notificações têm limitações em `file://`.
-
-### API Flask
-
-O backend de conta e sincronização requer PostgreSQL. Para rodar no Windows:
+### 1. Front-end PWA (Cliente)
+Para usufruir de todas as capacidades de Service Worker, instalação PWA e notificações, sirva a pasta por HTTP (não execute via `file://`):
 
 ```powershell
+python -m http.server 8080
+```
+Abra o navegador em `http://localhost:8080`.
+
+### 2. Back-end Flask (Opcional - para Conta e Nuvem)
+```powershell
+# 1. Ativar o ambiente virtual
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-py -m pip install -r requirements.txt
-py -m flask --app backend.server run --debug
+
+# 2. Instalar dependências
+pip install -r requirements.txt
+pip install -e ".[test]"
+
+# 3. Aplicar migrações no PostgreSQL Neon
+python -m backend.migrate
+
+# 4. Iniciar a API Flask
+python -m flask --app backend.server run --debug --port 5000
 ```
 
-Configure `apiBase` em `config.js` com a origem HTTPS da API antes de habilitar conta. A CSP permite conexões somente com essa origem e com o próprio site. O front-end pode ser hospedado no GitHub Pages; a API Flask deve rodar em um serviço Python e usar PostgreSQL/Neon. Configure `CHECKMED_FRONTEND_ORIGINS` com a origem exata do site. Nunca publique `.env` ou segredos. Sem configurar servidor, o app segue utilizável apenas neste aparelho.
+---
 
-## Testes
+## 🧪 Suíte de Testes Automatizados
+
+O último relatório disponível registra 20 testes do núcleo JavaScript aprovados e 21 testes da API aprovados; dois testes de integração foram ignorados por dependerem de banco configurado. Esses números não foram reexecutados nesta revisão:
 
 ```powershell
+# 1. Executar os 20 testes do núcleo front-end (Node.js)
 node --test tests/core.test.js
-py -m pip install -e ".[test]"
-py -m pytest
+
+# 2. Executar os testes da API Flask e segurança (Pytest)
+.\.venv\Scripts\python.exe -m pytest
 ```
 
-## Escopo futuro (Fase 3)
+---
 
-WebAuthn/passkeys, compartilhamento familiar com consentimento, push remoto, fila de lembretes e alarmes em segundo plano. A arquitetura e seus limites estão em [FASE3-ARQUITETURA.md](FASE3-ARQUITETURA.md).
+## 📚 Documentação do Projeto
+
+- [Manual do Usuário](docs/MANUAL_DO_USUARIO.md)
+- [Manual Técnico e de Implantação](docs/MANUAL_TECNICO.md)
+- [Documentação Técnica da API e Arquitetura](docs/DOCUMENTACAO_TECNICA.md)
+- [Decisões Arquiteturais (ADRs)](docs/decisoes.md)
+- [Roteiro de Testes Manuais](docs/teste-manual.md)
+- [Guia de Deploy em Nuvem](docs/deploy.md)
